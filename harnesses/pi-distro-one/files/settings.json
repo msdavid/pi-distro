@@ -1,0 +1,9 @@
+{
+  "defaultThinkingLevel": "high",
+  "showHardwareCursor": true,
+  "steeringMode": "one-at-a-time",
+  "transport": "auto",
+  "hideThinkingBlock": true,
+  "collapseChangelog": true,
+  "treeFilterMode": "all"
+}

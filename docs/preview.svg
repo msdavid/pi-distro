@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#15161c"/>
+      <stop offset="1" stop-color="#0c0d12"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7c9eff"/>
+      <stop offset="1" stop-color="#5b7cff"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="720" fill="url(#bg)"/>
+
+  <!-- subtle grid -->
+  <g stroke="#ffffff" stroke-opacity="0.03" stroke-width="1">
+    <line x1="0" y1="180" x2="1280" y2="180"/>
+    <line x1="0" y1="360" x2="1280" y2="360"/>
+    <line x1="0" y1="540" x2="1280" y2="540"/>
+    <line x1="320" y1="0" x2="320" y2="720"/>
+    <line x1="640" y1="0" x2="640" y2="720"/>
+    <line x1="960" y1="0" x2="960" y2="720"/>
+  </g>
+
+  <!-- left accent bar -->
+  <rect x="0" y="0" width="8" height="720" fill="url(#accent)"/>
+
+  <!-- pi-package badge -->
+  <g transform="translate(1040,72)">
+    <rect width="168" height="44" rx="22" fill="#ffffff" fill-opacity="0.06" stroke="#ffffff" stroke-opacity="0.12"/>
+    <text x="84" y="29" text-anchor="middle" font-size="18" font-weight="600" fill="#9fb2ff">pi-package</text>
+  </g>
+
+  <!-- title -->
+  <text x="120" y="312" font-size="92" font-weight="700" fill="#f4f5fb" letter-spacing="-2">pi-distro</text>
+
+  <!-- tagline -->
+  <text x="124" y="372" font-size="30" fill="#a6accc">Reusable, composable configurations for the pi coding agent.</text>
+
+  <!-- command chips -->
+  <g font-family="monospace" font-size="24" fill="#d7dcf2">
+    <g transform="translate(120,440)">
+      <rect width="290" height="56" rx="12" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.1"/>
+      <text x="20" y="37">/pi-distro deploy</text>
+    </g>
+    <g transform="translate(430,440)">
+      <rect width="250" height="56" rx="12" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.1"/>
+      <text x="20" y="37">/pi-distro save</text>
+    </g>
+    <g transform="translate(700,440)">
+      <rect width="250" height="56" rx="12" fill="#ffffff" fill-opacity="0.05" stroke="#ffffff" stroke-opacity="0.1"/>
+      <text x="20" y="37">/pi-distro pick</text>
+    </g>
+  </g>
+
+  <!-- footer hint -->
+  <text x="120" y="640" font-size="20" fill="#6b7088">Seed distros · user snapshots · GitHub sharing · version-aware updates</text>
+</svg>

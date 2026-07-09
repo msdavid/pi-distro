@@ -1,0 +1,40 @@
+---
+name: web-fullstack
+title: Full-Stack Web
+description: "React/Node project with web-research + review skills, review-oriented context, and a sensible tools allowlist."
+version: 0.1.0
+tags: [web, react, node]
+---
+
+# Full-Stack Web
+
+## Bundled files
+The following bundled files are provided under `files/` and should be placed into the
+target project. For any path that already exists, do NOT overwrite — show the user a diff
+and ask whether to overwrite, keep theirs, or merge. Merge JSON settings objects field by
+field. Append (not replace) `AGENTS.md` content under a clearly-delimited section.
+
+- `files/AGENTS.md` → `./AGENTS.md`
+- `files/settings.json` → `./.pi/settings.json` (merge with existing settings)
+- `files/.pi/prompts/review.md` → `./.pi/prompts/review.md`
+
+## pi packages to install
+Use `pi install -l` to install the following **project-locally** (writes to `./.pi/settings.json`
+on success, and does nothing on failure). Confirm with the user before each install. Do NOT
+pre-add these packages to the bundled `settings.json` — `pi install -l` is the single source
+of truth that registers a package, so that a failed install never leaves a dangling entry
+in settings.
+
+- `npm:pi-browse` — web search (Brave/DuckDuckGo/Exa/Gemini) and content extraction for
+  documentation lookup and API verification
+
+## Context
+This harness sets up a full-stack web project with React/Node conventions. The bundled
+`AGENTS.md` contains frontend and backend conventions, testing guidance, and a code review
+process. The `settings.json` restricts the tools allowlist to the essential set. A review
+prompt template is included under `.pi/prompts/` for on-demand code reviews.
+
+## Skills / prompts
+- The `pi-browse` package (installed above) provides web research capabilities.
+- A review prompt template is bundled at `files/.pi/prompts/review.md` and deployed to
+  `./.pi/prompts/review.md`. Use it to run structured code reviews on changes.

@@ -1,0 +1,23 @@
+# Dependencies & build output
+node_modules/
+dist/
+
+# pi runtime / dev state (repo root only — bundled .pi/ under harnesses/ IS shipped)
+/.pi/
+
+# Compiled JS (this package ships .ts directly; no build step)
+*.js
+
+# pi-crew project-local runtime state (repo root dev only)
+/.crew/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+
+# Local env / secrets
+.env
+.env.*
+
+# Package tarballs
+*.tgz

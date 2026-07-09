@@ -1,0 +1,65 @@
+{
+  "name": "@msdavid/pi-distro",
+  "version": "0.2.0",
+  "description": "Reusable, composable configurations for the pi coding agent — seed distros, project snapshots, and GitHub sharing with version-aware updates.",
+  "type": "module",
+  "license": "MIT",
+  "author": "msdavid",
+  "homepage": "https://github.com/msdavid/pi-distro#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/msdavid/pi-distro.git"
+  },
+  "bugs": {
+    "url": "https://github.com/msdavid/pi-distro/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi",
+    "coding-agent",
+    "configuration",
+    "distro",
+    "developer-tools"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "sideEffects": false,
+  "files": [
+    "extensions",
+    "skills",
+    "harnesses",
+    "README.md",
+    "docs",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "pi": {
+    "extensions": ["./extensions"],
+    "skills": ["./skills"],
+    "image": "https://raw.githubusercontent.com/msdavid/pi-distro/main/docs/preview.png"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "^0.80.0",
+    "@earendil-works/pi-coding-agent": "^0.80.0",
+    "@earendil-works/pi-tui": "^0.80.0",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.23.0",
+    "typebox": "^1.1.24",
+    "typescript": "^5.0.0"
+  }
+}
