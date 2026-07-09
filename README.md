@@ -1,7 +1,7 @@
 # pi-distro
 
-[![npm version](https://img.shields.io/npm/v/@msdavid/pi-distro.svg)](https://www.npmjs.com/package/@msdavid/pi-distro)
-[![License: MIT](https://img.shields.io/npm/l/@msdavid/pi-distro.svg)](https://github.com/msdavid/pi-distro/blob/main/LICENSE)
+[![version](https://img.shields.io/github/package-json/v/msdavid/pi-distro.svg)](https://github.com/msdavid/pi-distro/blob/main/package.json)
+[![License: MIT](https://img.shields.io/github/license/msdavid/pi-distro.svg)](https://github.com/msdavid/pi-distro/blob/main/LICENSE)
 [![pi-package](https://img.shields.io/badge/pi--package-%E2%9C%93-7c9eff.svg)](https://pi.dev/packages)
 
 Distributions for [pi](https://github.com/earendil-works/pi-coding-agent) — the coding
