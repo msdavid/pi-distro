@@ -74,13 +74,17 @@ shadow global ones — but redundancy leaves a confusing duplicate tool set.)
 suggestions package is configured through. `supi-prompt-suggestions` ships **disabled by
 default** — no suggestions will appear until the user opts in. After both installs succeed,
 explicitly notify the user that to start seeing ghost-text prompt suggestions they must:
-  1. run `/supi-settings` and open the **Prompt suggestions** section, and
-  2. pick a **Suggestion model** (choose a cheap, fast model — `disabled` is the default
+  1. ensure at least one model is enabled in PI (`enabledModels` in `.pi/settings.json`)
+    — the suggestion-model picker only offers models from PI's scoped enabled models, so
+    if none are configured there is nothing to pick; a cheap, fast model is recommended,
+    and
+  2. run `/supi-settings` and open the **Prompt suggestions** section, and
+  3. pick a **Suggestion model** (choose a cheap, fast model — `disabled` is the default
      and leaves the feature off).
 Do not silently move on after installing these packages. State this as a clear, visible
 next step in the same message that confirms the install, e.g. "Installed. To enable
-prompt suggestions, run `/supi-settings` → Prompt suggestions → pick a model." Once
-prompt suggestions, run `/supi-settings` → Prompt suggestions → pick a model." Once
+prompt suggestions, make sure at least one model is listed in `enabledModels`, then run
+`/supi-settings` → Prompt suggestions → pick a model." Once
 configured, suggestions appear after each assistant response as dim ghost text (accept
 with →, dismiss with Esc) and can be reconfigured per-project via the same command.
 
