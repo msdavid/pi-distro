@@ -42,18 +42,52 @@ validate the hard-to-articulate parts before work begins.
 
 ## Packages installed (all project-local)
 
-| Package | What it does |
-|---------|-------------|
-| `npm:@tintinweb/pi-subagents` | Claude Code–style autonomous sub-agents — spawn specialized agents in isolated sessions with own tools/prompt/model/thinking; parallel execution, live widget, mid-run steering, resumption (**primary capability**) |
-| `npm:pi-web-access` | Web search, URL fetching, GitHub cloning, PDF/video extraction |
-| `npm:pi-agent-browser-native` | Real browser automation and web interaction |
-| `npm:pi-bash-live-view` | Live terminal rendering for shell commands |
-| `npm:@yeliu84/pi-model-router` | Model routing / fallback across providers |
-| `npm:@robhowley/pi-openrouter` | OpenRouter provider integration |
-| `npm:@juicesharp/rpiv-todo` | Task list management |
-| `npm:pi-goal` | Persistent autonomous goals — `/goal` loops until complete, paused, or budget-limited |
-| `npm:@trevonistrevon/pi-loop` | Cron/event-based agent re-wake loops + background process monitoring — schedule agents to re-wake on time/events |
-| `npm:@juicesharp/rpiv-ask-user-question` | Structured questionnaire the model puts to the user (typed options instead of guessing) |
+### Core — installed by default
+
+Each row pairs a Claude Code feature with the pi package that provides it.
+
+| Claude Code feature | Package | What it does |
+|---|---------|-------------|
+| Sub-agents | `npm:@tintinweb/pi-subagents` | Spawn specialized agents in isolated sessions with own tools/prompt/model/thinking; parallel execution, live widget, mid-run steering, resumption (**primary capability**) |
+| Web search / fetch | `npm:pi-web-access` | Web search, URL fetching, GitHub cloning, PDF/video extraction |
+| Browser (Chrome) automation | `npm:pi-agent-browser-native` | Real browser automation and web interaction |
+| Live terminal | `npm:pi-bash-live-view` | Live terminal rendering for shell commands |
+| Model routing | `npm:@yeliu84/pi-model-router` | Model routing / fallback across providers |
+| Provider integration (OpenRouter) | `npm:@robhowley/pi-openrouter` | OpenRouter provider integration |
+| Todos | `npm:@juicesharp/rpiv-todo` | Task list management |
+| Scheduled tasks / routines | `npm:@trevonistrevon/pi-loop` | Cron/event-based agent re-wake loops + background process monitoring — schedule agents to re-wake on time/events |
+| Persistent goals | `npm:pi-goal` | `/goal` loops until complete, paused, or budget-limited |
+| Structured clarifying questions | `npm:@juicesharp/rpiv-ask-user-question` | Structured questionnaire the model puts to the user (typed options instead of guessing) |
+| Follow-up prompt suggestions | `npm:@mrclrchtr/supi-prompt-suggestions` | Advisory ghost-text next-prompt suggestions after each assistant response (accept with →, dismiss with Esc); ships disabled — the deployer configures the suggestion model with the user during deploy |
+
+### Optional add-ons — offered during deploy, one at a time
+
+These mimic additional Claude Code features the core does not cover. The deployer asks
+before installing each; skip any you don't want (install later with `pi install -l <name>`).
+
+| Claude Code feature | Package | What it does |
+|---|---------|-------------|
+| MCP (Model Context Protocol) | `npm:pi-mcp-adapter` | Connect pi to hundreds of external tools and data sources via MCP servers — Claude Code's primary extensibility surface; on-demand server discovery |
+| Permission modes (plan / acceptEdits) | `npm:pi-pledit` | Plan mode and accept-edits mode, inspired by Claude Code's Shift+Tab cycle (default → acceptEdits → plan) |
+| Auto memory | `npm:pi-memory` | Claude Code writes notes to itself across sessions (build commands, debugging insights, preferences); semantic search across daily logs, long-term memory, and a scratchpad |
+| Checkpoint / undo | `npm:pi-rewind` | Per-tool snapshots with `/rewind` command and Esc+Esc shortcut, plus a redo stack — mirrors Claude Code's edit tracking and rewind-to-previous-state |
+| Cost tracking / budget limits | `npm:pi-agent-budget` | Real-time spend widget with configurable budget caps (alternative: `npm:pi-usage-dashboard` for a fuller tokens/cost/latency footer) |
+| Automated code review | `npm:pi-code-review` | Language-aware review after the agent writes or modifies files, mirroring Claude Code's `/code-review` |
+| Remote control / channels | `npm:pi-chaos-relay` | Drive and answer the agent over Telegram and email via a CHAOS relay — Claude Code's "push events into a session" pattern (Telegram-only alt: `npm:pi-telegram-plus`; Discord alt: `npm:pi-discord-remote`) |
+| Claude Code hook compatibility | `npm:@hsingjui/pi-hooks` | Adapts Claude Code's hook configuration format to pi's extension event system so existing PreToolUse/PostToolUse/session-start workflows can be reused (early release) |
+
+### Not covered by any known package
+
+These Claude Code features have no npm package match and are surfaced as limitations
+rather than installs:
+
+- **Output styles** (Proactive / Explanatory / Learning system-prompt presets) — no
+  dedicated package; `AGENTS.md` and `--append-system-prompt` partially cover this.
+- **`/run` + `/verify`** (launch and verify the running app) — no npm package; could be
+  authored as a custom project skill.
+- **IDE integration** (VS Code inline diffs, @-mentions, JetBrains plugin) — a separate
+  surface (a VS Code extension, e.g. `pi-vscode-sr`), not a pi package; out of scope for
+  this distro to install.
 
 ## Prerequisites
 
