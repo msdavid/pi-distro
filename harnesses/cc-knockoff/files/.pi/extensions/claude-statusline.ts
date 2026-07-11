@@ -14,9 +14,9 @@
  * - git         : branch from footerData + dirty(!)/untracked(?) markers, refreshed
  *                 in the background so render() never spawns a process
  *
- * Auto-enables on session start. Also auto-expands tool outputs on session start
- * (the Ctrl+O effect) so full output is visible by default. Toggle the status line
- * with the /claude-statusline command.
+ * Auto-enables on session start. Keeps tool outputs collapsed on session start
+ * (Ctrl+O off) so the working view stays clean. Toggle the status line with the
+ * /claude-statusline command.
  */
 
 import { execSync } from "node:child_process";
@@ -189,10 +189,11 @@ export default function (pi: ExtensionAPI) {
 		ctx.ui.setFooter(undefined);
 	}
 
-	// Auto-enable on every (re)start, and auto-expand tool outputs (the Ctrl+O effect).
+	// Auto-enable on every (re)start. Keep tool outputs collapsed (Ctrl+O off) for a
+	// clean working view; thinking blocks are hidden via settings.json.
 	pi.on("session_start", async (_event, ctx) => {
 		enable(ctx);
-		ctx.ui.setToolsExpanded(true);
+		ctx.ui.setToolsExpanded(false);
 	});
 
 	pi.on("session_shutdown", async (_event, _ctx) => {

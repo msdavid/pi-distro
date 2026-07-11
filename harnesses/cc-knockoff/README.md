@@ -18,8 +18,8 @@ makes a great starting point to fork and make your own.
   blocks, and hardware cursor.
 - **`.pi/extensions/claude-statusline.ts`** — a Claude-style status-line footer
   (model | dir | thinking level | context-window bar gauge + cache % | git branch status).
-  Auto-enables on session start and **auto-expands tool outputs** (the Ctrl+O effect) so
-  full output is visible by default. Toggle with the `/claude-statusline` command.
+  Auto-enables on session start and **collapses tool outputs** (disables the Ctrl+O
+  effect) so the working view stays clean. Toggle with the `/claude-statusline` command.
 
 ## EYU (Explain Your Understanding)
 

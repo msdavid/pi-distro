@@ -2,7 +2,7 @@
 name: cc-knockoff
 title: cc-knockoff
 description: "A Claude Code–style coding agent distribution built around autonomous sub-agent spawning and coordination, with web research, browser automation, live shell, model routing, and task management in support. Includes a Claude-style status line and an explore-before-acting approach."
-version: 0.4.0
+version: 0.5.0
 tags: [full-config, claude-code-style]
 ---
 
@@ -47,6 +47,10 @@ array — `pi install -l` is the single registration mechanism.
 - `npm:@juicesharp/rpiv-ask-user-question` — structured questionnaire the model can put to
   the user when it would otherwise guess, with typed options instead of free-form replies
   (reduces ambiguous decisions and keeps the user in the loop on judgment calls)
+- `npm:pi-btw` — `/btw` side conversation channel: opens a parallel pi sub-session with
+  coding-tool access that runs immediately while the main agent is still busy, keeps a
+  continuous thread by default (or contextless via `/btw:tangent`), and lets you inject
+  the thread or a summary back into the main agent
 
 **Tool-name conflict check:** before installing, cross-check each package's purpose
 against the already-active tools in the target project (run `pi list`). If a package
@@ -59,16 +63,16 @@ shadow global ones — but redundancy leaves a confusing duplicate tool set.)
 `files/.pi/extensions/claude-statusline.ts` is a Claude-style status-line footer
 (model | dir | thinking level | context-window bar gauge + cache % | git branch status).
 It auto-enables on session start and is toggleable via the `/claude-statusline` command.
-It also **auto-expands tool outputs** on session start (the Ctrl+O effect) so full output
-is visible by default, while keeping thinking blocks hidden for a clean working view.
+It also **collapses tool outputs** on session start (disables the Ctrl+O effect) so the
+working view stays clean, and thinking blocks are hidden by default.
 Deploy it to `./.pi/extensions/claude-statusline.ts`; pi loads it via jiti on next start
 (no build step). It depends only on pi core (`@earendil-works/pi-coding-agent`,
 `@earendil-works/pi-ai`, `@earendil-works/pi-tui`) — all provided as peer deps.
 
 ## Settings (bundled)
 `files/settings.json` provides the agent's defaults: high thinking level, one-at-a-time
-steering, hidden thinking blocks, and hardware cursor. Tool outputs are auto-expanded on
-start (via the status-line extension). Merge with any existing `.pi/settings.json`
+steering, hidden thinking blocks, and hardware cursor. Tool outputs are collapsed on
+start (via the status-line extension) for a clean working view. Merge with any existing `.pi/settings.json`
 field-by-field. Auth and model/provider configuration are not part of this distribution —
 configure those independently.
 
