@@ -2,7 +2,7 @@
 name: cc-knockoff
 title: cc-knockoff
 description: "A Claude Code–style coding agent distribution built around autonomous sub-agent spawning and coordination, with web research, browser automation, live shell, model routing, and task management in support. Includes a Claude-style status line and an explore-before-acting approach."
-version: 0.6.0
+version: 0.7.0
 tags: [full-config, claude-code-style]
 ---
 
@@ -55,6 +55,11 @@ array — `pi install -l` is the single registration mechanism.
   after each assistant response, suggests a concise next prompt as dim ghost text in the
   editor (accept with →, dismiss with Esc); disabled by default, enable via
   `/supi-settings` by picking a suggestion model
+- `npm:@mrclrchtr/supi-settings` — unified settings command for SuPi extensions:
+  adds the `/supi-settings` slash command, a searchable overlay that groups settings by
+  extension, shows current values with source badges (`(project)`/`(global)`/`(default)`),
+  and lets you toggle between project and global scopes with `Tab`; the configuration
+  surface for `supi-prompt-suggestions` and other SuPi extensions
 
 **Tool-name conflict check:** before installing, cross-check each package's purpose
 against the already-active tools in the target project (run `pi list`). If a package
@@ -63,15 +68,18 @@ overlaps an existing tool — either an exact name collision or semantic redunda
 of installing blindly. (Exact name collisions are non-fatal in pi — project-local tools
 shadow global ones — but redundancy leaves a confusing duplicate tool set.)
 
-**Post-install — required user action for `npm:@mrclrchtr/supi-prompt-suggestions`:**
-this package ships **disabled by default** — no suggestions will appear until the user
-opts in. After the install succeeds, explicitly notify the user that to start seeing
-ghost-text prompt suggestions they must:
+**Post-install — required user action for the SuPi packages
+(`npm:@mrclrchtr/supi-settings` + `npm:@mrclrchtr/supi-prompt-suggestions`):** install
+`supi-settings` first — it provides the `/supi-settings` command that the prompt-
+suggestions package is configured through. `supi-prompt-suggestions` ships **disabled by
+default** — no suggestions will appear until the user opts in. After both installs succeed,
+explicitly notify the user that to start seeing ghost-text prompt suggestions they must:
   1. run `/supi-settings` and open the **Prompt suggestions** section, and
   2. pick a **Suggestion model** (choose a cheap, fast model — `disabled` is the default
      and leaves the feature off).
-Do not silently move on after installing this package. State this as a clear, visible
+Do not silently move on after installing these packages. State this as a clear, visible
 next step in the same message that confirms the install, e.g. "Installed. To enable
+prompt suggestions, run `/supi-settings` → Prompt suggestions → pick a model." Once
 prompt suggestions, run `/supi-settings` → Prompt suggestions → pick a model." Once
 configured, suggestions appear after each assistant response as dim ghost text (accept
 with →, dismiss with Esc) and can be reconfigured per-project via the same command.
