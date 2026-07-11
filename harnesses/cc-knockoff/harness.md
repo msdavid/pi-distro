@@ -2,7 +2,7 @@
 name: cc-knockoff
 title: cc-knockoff
 description: "A Claude Code–style coding agent distribution built around autonomous sub-agent spawning and coordination, with web research, browser automation, live shell, model routing, and task management in support. Includes a Claude-style status line and an explore-before-acting approach."
-version: 0.9.0
+version: 1.0.0
 tags: [full-config, claude-code-style]
 ---
 
@@ -118,6 +118,53 @@ Collaborate with the user through these steps:
   Once configured, suggestions appear after each assistant response as dim ghost text
   (accept with →, dismiss with Esc). To change the model later, edit the config file or
   run `/reload` after updating it.
+
+## Optional add-ons (Claude Code feature parity)
+The packages above form the core of this distro. The packages below are **optional** —
+they mimic additional Claude Code features the core does not cover. Offer them to the user
+after the core deploy completes, **one category at a time, asking whether to install each**.
+Do not install any of these without explicit per-package confirmation. Apply the same
+`pi install -l` + tool-name conflict check (`pi list`) flow as the core packages. If the
+user declines a category, skip it and move on; they can install any of these later with
+`pi install -l <name>`.
+
+- `npm:pi-mcp-adapter` — **MCP (Model Context Protocol)**: connect pi to hundreds of
+  external tools and data sources via MCP servers (Claude Code's primary extensibility
+  surface; pi has no built-in MCP). On-demand server discovery so only a single proxy tool
+  is advertised until a server is actually used.
+- `npm:pi-pledit` — **permission modes**: plan mode and accept-edits mode, inspired by
+  Claude Code's Shift+Tab cycle (default → acceptEdits → plan). Controls how aggressively
+  the agent modifies code before prompting.
+- `npm:pi-memory` — **auto memory**: Claude Code writes notes to itself across sessions
+  (build commands, debugging insights, preferences); this brings that to pi with semantic
+  search across daily logs, long-term memory, and a scratchpad. Complements the manual
+  `AGENTS.md` the distro bundles.
+- `npm:pi-rewind` — **checkpoint / undo**: per-tool snapshots with a `/rewind` command and
+  Esc+Esc shortcut, plus a redo stack — mirrors Claude Code's automatic edit tracking and
+  rewind-to-previous-state.
+- `npm:pi-agent-budget` — **cost tracking / budget limits**: real-time spend widget with
+  configurable budget caps. The bundled status line shows context % and cache % but not $;
+  this fills that gap. (Alternative: `npm:pi-usage-dashboard` for a fuller tokens/cost/
+  latency footer.)
+- `npm:pi-code-review` — **automated code review**: language-aware review after the agent
+  writes or modifies files, mirroring Claude Code's `/code-review` bundled skill.
+- `npm:pi-chaos-relay` — **remote control / channels**: drive and answer the agent over
+  Telegram and email via a CHAOS relay — Claude Code's "push events into a session"
+  pattern. (Telegram-only alternative: `npm:pi-telegram-plus`; Discord alternative:
+  `npm:pi-discord-remote`, which auto-creates a channel per session.)
+- `npm:@hsingjui/pi-hooks` — **Claude Code hook compatibility**: adapts Claude Code's hook
+  configuration format to pi's extension event system, so existing command-hook workflows
+  (PreToolUse / PostToolUse / session-start) can be reused with minimal changes. Early
+  release; mention the version if the user asks about stability.
+
+**Not covered by any known package** (surface as limitations, not installs):
+- *Output styles* (Proactive / Explanatory / Learning system-prompt presets) — no
+  dedicated package; `AGENTS.md` and `--append-system-prompt` partially cover this.
+- *`/run` + `/verify`* (launch and verify the running app) — no npm package; could be
+  authored as a custom project skill if the user wants it.
+- *IDE integration* (VS Code inline diffs, @-mentions, JetBrains plugin) — this is a
+  separate surface (a VS Code extension, e.g. `pi-vscode-sr`), not a pi package; out of
+  scope for this distro to install, but worth mentioning if the user asks.
 
 ## Custom extension (bundled)
 `files/.pi/extensions/claude-statusline.ts` is a Claude-style status-line footer
