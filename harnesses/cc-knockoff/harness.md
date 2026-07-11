@@ -2,7 +2,7 @@
 name: cc-knockoff
 title: cc-knockoff
 description: "A Claude Code–style coding agent distribution built around autonomous sub-agent spawning and coordination, with web research, browser automation, live shell, model routing, and task management in support. Includes a Claude-style status line and an explore-before-acting approach."
-version: 0.7.0
+version: 0.9.0
 tags: [full-config, claude-code-style]
 ---
 
@@ -53,13 +53,9 @@ array — `pi install -l` is the single registration mechanism.
   the thread or a summary back into the main agent
 - `npm:@mrclrchtr/supi-prompt-suggestions` — advisory ghost-text prompt suggestions:
   after each assistant response, suggests a concise next prompt as dim ghost text in the
-  editor (accept with →, dismiss with Esc); disabled by default, enable via
-  `/supi-settings` by picking a suggestion model
-- `npm:@mrclrchtr/supi-settings` — unified settings command for SuPi extensions:
-  adds the `/supi-settings` slash command, a searchable overlay that groups settings by
-  extension, shows current values with source badges (`(project)`/`(global)`/`(default)`),
-  and lets you toggle between project and global scopes with `Tab`; the configuration
-  surface for `supi-prompt-suggestions` and other SuPi extensions
+  editor (accept with →, dismiss with Esc); ships disabled by default — the deploying
+  agent configures the suggestion model during deploy (see the post-install directive
+  below); no `/supi-settings` package is required
 
 **Tool-name conflict check:** before installing, cross-check each package's purpose
 against the already-active tools in the target project (run `pi list`). If a package
@@ -68,25 +64,60 @@ overlaps an existing tool — either an exact name collision or semantic redunda
 of installing blindly. (Exact name collisions are non-fatal in pi — project-local tools
 shadow global ones — but redundancy leaves a confusing duplicate tool set.)
 
-**Post-install — required user action for the SuPi packages
-(`npm:@mrclrchtr/supi-settings` + `npm:@mrclrchtr/supi-prompt-suggestions`):** install
-`supi-settings` first — it provides the `/supi-settings` command that the prompt-
-suggestions package is configured through. `supi-prompt-suggestions` ships **disabled by
-default** — no suggestions will appear until the user opts in. After both installs succeed,
-explicitly notify the user that to start seeing ghost-text prompt suggestions they must:
-  1. ensure at least one model is enabled in PI (`enabledModels` in `.pi/settings.json`)
-    — the suggestion-model picker only offers models from PI's scoped enabled models, so
-    if none are configured there is nothing to pick; a cheap, fast model is recommended,
-    and
-  2. run `/supi-settings` and open the **Prompt suggestions** section, and
-  3. pick a **Suggestion model** (choose a cheap, fast model — `disabled` is the default
-     and leaves the feature off).
-Do not silently move on after installing these packages. State this as a clear, visible
-next step in the same message that confirms the install, e.g. "Installed. To enable
-prompt suggestions, make sure at least one model is listed in `enabledModels`, then run
-`/supi-settings` → Prompt suggestions → pick a model." Once
-configured, suggestions appear after each assistant response as dim ghost text (accept
-with →, dismiss with Esc) and can be reconfigured per-project via the same command.
+**Post-install — configure `npm:@mrclrchtr/supi-prompt-suggestions` with the user:**
+this package ships **disabled by default** — no suggestions will appear until a suggestion
+model is configured. This distro intentionally does **not** install `supi-settings` (the
+`/supi-settings` UI); instead, the deploying agent configures the model directly by writing
+the SuPi config file. Do this as a collaborative step with the user right after the install
+succeeds — do not silently move on.
+
+How the config works (from the package source):
+  - The setting lives in a plain JSON file, keyed by section `promptSuggestions` with a
+    single `model` field whose value is a canonical `provider/model-id` string, or
+    `"disabled"` (the default).
+  - **Project scope** file: `.pi/supi/config.json` (relative to the project root).
+  - **Global scope** file: `~/.pi/agent/supi/config.json`.
+  - Resolution is defaults ← global ← project, so a project value overrides a global one.
+  - The chosen `model` **must** be one of PI's scoped enabled models. PI merges
+    `enabledModels` from **two** settings files — global (`~/.pi/agent/settings.json`)
+    and project (`.pi/settings.json`), with project overriding global — and the picker
+    is empty if `enabledModels` is unset in **both** scopes. The chosen model must also
+    have an API key configured.
+
+Collaborate with the user through these steps:
+  1. Check `enabledModels` in **both** `~/.pi/agent/settings.json` (global) and
+     `.pi/settings.json` (project). If neither scope has any enabled models configured,
+     **help the user configure them now** — do not just ask and move on:
+       a. Ask which providers the user has API keys for (Anthropic, OpenAI, Google, etc.).
+       b. Recommend a cheap, fast model for suggestions (suggestions fire after every
+          assistant turn, so latency/cost dominate): `anthropic/claude-haiku` or
+          `openai/gpt-4o-mini` are the de-facto standard picks for this pattern. Match
+          the user's existing provider if they already have one configured.
+       c. Write the `enabledModels` array (glob patterns, e.g. `["claude-haiku"]` or
+          `["gpt-4o-mini"]`) into the scope the user prefers — default to project-local
+          (`.pi/settings.json`) unless they want it global. Merge into the existing JSON;
+          do NOT overwrite unrelated keys. Ensure the corresponding API key is set (via
+          the provider's env var or PI's auth store) before continuing.
+  2. List the currently enabled models (`provider/model-id` form) and ask the user which
+     one to use for suggestions. Offer a recommendation if a cheap/fast model is present.
+  3. Ask whether to set it **project-locally** (`.pi/supi/config.json`) or **globally**
+     (`~/.pi/agent/supi/config.json`). Default to project-local unless the user says
+     otherwise.
+  4. Write the chosen scope's config file. Merge into any existing object — do NOT
+     overwrite unrelated keys. The result should look like:
+     ```json
+     {
+       "promptSuggestions": { "model": "provider/model-id" }
+     }
+     ```
+     Create the parent directory if it does not exist. If the user declines to choose a
+     model now, leave the setting at `"disabled"` and tell them they can set it later by
+     editing the same file (or installing `npm:@mrclrchtr/supi-settings` for a UI).
+  5. Confirm the outcome in the same message that confirms the install, e.g. "Installed.
+  Configured prompt suggestions to use anthropic/claude-haiku in `.pi/supi/config.json`."
+  Once configured, suggestions appear after each assistant response as dim ghost text
+  (accept with →, dismiss with Esc). To change the model later, edit the config file or
+  run `/reload` after updating it.
 
 ## Custom extension (bundled)
 `files/.pi/extensions/claude-statusline.ts` is a Claude-style status-line footer
