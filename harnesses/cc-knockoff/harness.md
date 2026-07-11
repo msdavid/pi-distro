@@ -2,7 +2,7 @@
 name: cc-knockoff
 title: cc-knockoff
 description: "A Claude Code–style coding agent distribution built around autonomous sub-agent spawning and coordination, with web research, browser automation, live shell, model routing, and task management in support. Includes a Claude-style status line and an explore-before-acting approach."
-version: 0.5.0
+version: 0.6.0
 tags: [full-config, claude-code-style]
 ---
 
@@ -51,6 +51,10 @@ array — `pi install -l` is the single registration mechanism.
   coding-tool access that runs immediately while the main agent is still busy, keeps a
   continuous thread by default (or contextless via `/btw:tangent`), and lets you inject
   the thread or a summary back into the main agent
+- `npm:@mrclrchtr/supi-prompt-suggestions` — advisory ghost-text prompt suggestions:
+  after each assistant response, suggests a concise next prompt as dim ghost text in the
+  editor (accept with →, dismiss with Esc); disabled by default, enable via
+  `/supi-settings` by picking a suggestion model
 
 **Tool-name conflict check:** before installing, cross-check each package's purpose
 against the already-active tools in the target project (run `pi list`). If a package
@@ -58,6 +62,19 @@ overlaps an existing tool — either an exact name collision or semantic redunda
 (different names, similar function) — offer **skip / replace / keep both / cancel** instead
 of installing blindly. (Exact name collisions are non-fatal in pi — project-local tools
 shadow global ones — but redundancy leaves a confusing duplicate tool set.)
+
+**Post-install — required user action for `npm:@mrclrchtr/supi-prompt-suggestions`:**
+this package ships **disabled by default** — no suggestions will appear until the user
+opts in. After the install succeeds, explicitly notify the user that to start seeing
+ghost-text prompt suggestions they must:
+  1. run `/supi-settings` and open the **Prompt suggestions** section, and
+  2. pick a **Suggestion model** (choose a cheap, fast model — `disabled` is the default
+     and leaves the feature off).
+Do not silently move on after installing this package. State this as a clear, visible
+next step in the same message that confirms the install, e.g. "Installed. To enable
+prompt suggestions, run `/supi-settings` → Prompt suggestions → pick a model." Once
+configured, suggestions appear after each assistant response as dim ghost text (accept
+with →, dismiss with Esc) and can be reconfigured per-project via the same command.
 
 ## Custom extension (bundled)
 `files/.pi/extensions/claude-statusline.ts` is a Claude-style status-line footer
