@@ -2,7 +2,7 @@
 name: cc-knockoff
 title: cc-knockoff
 description: "A Claude Code–style coding agent distribution built around autonomous sub-agent spawning and coordination, with web research, browser automation, live shell, model routing, and task management in support. Includes a Claude-style status line and an explore-before-acting approach."
-version: 1.0.0
+version: 1.1.0
 tags: [full-config, claude-code-style]
 ---
 
@@ -17,9 +17,12 @@ of that.
 The following bundled files are provided under `files/` and should be placed into the
 target project. For any path that already exists, do NOT overwrite — show the user a diff
 and ask whether to overwrite, keep theirs, or merge. Merge JSON settings field-by-field.
-Append AGENTS.md content under a delimited section if one exists.
+For `APPEND_SYSTEM.md`, if one already exists, concatenate the bundled content at the
+end under a clear `# cc-knockoff methodology` delimiter rather than overwriting — pi
+joins multiple `APPEND_SYSTEM.md` sources with a blank-line separator, but since the
+project-local file is a single file, concatenate within it.
 
-- `files/AGENTS.md` → `./AGENTS.md`
+- `files/.pi/APPEND_SYSTEM.md` → `./.pi/APPEND_SYSTEM.md`
 - `files/settings.json` → `./.pi/settings.json` (merge with existing settings)
 - `files/.pi/extensions/claude-statusline.ts` → `./.pi/extensions/claude-statusline.ts`
 
@@ -184,7 +187,15 @@ field-by-field. Auth and model/provider configuration are not part of this distr
 configure those independently.
 
 ## Context
-The bundled `AGENTS.md` is an explore-before-acting working methodology: investigate
-before implementing, surface interpretations and tradeoffs, make surgical changes, keep
-solutions simple, execute against verifiable goals, and treat documentation as part of the
-implementation. Deploy it to `./AGENTS.md` so the agent follows these conventions.
+The bundled `.pi/APPEND_SYSTEM.md` is an explore-before-acting working methodology:
+investigate before implementing, surface interpretations and tradeoffs, make surgical
+changes, keep solutions simple, execute against verifiable goals, and treat documentation
+as part of the implementation. Deploy it to `./.pi/APPEND_SYSTEM.md`; pi appends its
+content to the **system prompt** at startup (after pi's base identity, tools, and
+guidelines, before project context files and skills), giving it stronger adherence than
+an `AGENTS.md` context file would. This leaves `./AGENTS.md` free for the user's own
+project-specific context. The content is purely additive to pi's default system prompt —
+verified against `dist/core/system-prompt.js`: it never redefines the agent's identity,
+tool semantics, or built-in guidelines, so there are no conflicts. Note this means
+`--no-context-files` (`-nc`) does **not** toggle the methodology off (that flag only
+disables `AGENTS.md`/`CLAUDE.md` context files); remove or edit the file to disable it.

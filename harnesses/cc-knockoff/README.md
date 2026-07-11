@@ -10,10 +10,13 @@ makes a great starting point to fork and make your own.
 
 ## What it sets up
 
-- **`AGENTS.md`** — an explore-before-acting working methodology: investigate before
+- **`.pi/APPEND_SYSTEM.md`** — an explore-before-acting working methodology, appended to
+  pi's **system prompt** at startup (not a context file): investigate before
   implementing, surface interpretations and tradeoffs, make surgical changes, keep
   solutions simple, execute against verifiable goals, and treat documentation as part of
-  the implementation.
+  the implementation. Placing it in the system prompt gives stronger adherence than an
+  `AGENTS.md` context file would, and leaves `./AGENTS.md` free for your own
+  project-specific context.
 - **`.pi/settings.json`** — high thinking level, one-at-a-time steering, hidden thinking
   blocks, and hardware cursor.
 - **`.pi/extensions/claude-statusline.ts`** — a Claude-style status-line footer
@@ -23,8 +26,9 @@ makes a great starting point to fork and make your own.
 
 ## EYU (Explain Your Understanding)
 
-The `AGENTS.md` includes an **EYU** rule: when you say "EYU", the agent summarizes its
-understanding of your request, then stops and waits for your approval before acting.
+The `.pi/APPEND_SYSTEM.md` methodology includes an **EYU** rule: when you say "EYU",
+the agent summarizes its understanding of your request, then stops and waits for your
+approval before acting.
 
 Two purposes:
 
