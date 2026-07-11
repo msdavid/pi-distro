@@ -9,10 +9,12 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import {
   readCatalogue,
+  readLocalCatalogue,
   findHarness,
+  sourceLabel,
 } from "./catalogue.ts";
 import type { HarnessEntry } from "./catalogue.ts";
-import { looksLikeGithubRef, parseGithubRef, fetchGithubDistro } from "./github.ts";
+import { looksLikeGithubRef, parseGithubRef, fetchGithubDistro, fetchOfficialDistro } from "./github.ts";
 
 /**
  * Resolve a distro from a name argument (GitHub ref or local catalogue name).
@@ -52,19 +54,44 @@ export async function resolveDistro(
       ctx.ui.notify(`Distro '${nameArg}' not found. Available: ${available}`, "error");
       return undefined;
     }
-    return { entry: harness };
+    return resolveEntry(harness, ctx);
   }
   // No nameArg → interactive selector
   const theme = ctx.ui.theme;
-  const labels = catalogue.map((h) => `${theme.bold(h.name)} — ${h.description}`);
+  const labels = catalogue.map((h) => `${theme.bold(h.name)} — ${h.description}  [${sourceLabel(h.source)}]`);
   const selected = await ctx.ui.select(`Select a distro to ${verb}:`, labels);
   if (selected === undefined) return undefined;
   const harness = catalogue[labels.indexOf(selected)];
-  return harness ? { entry: harness } : undefined;
+  return harness ? resolveEntry(harness, ctx) : undefined;
 }
 
-/** Resolve the current catalogue entry for a distro by name (local catalogue only). */
+/**
+ * Resolve a catalogue entry to a usable { entry, cleanup? }.
+ * Official listing entries (needsFetch) are fetched from GitHub here — the actual
+ * clone happens at selection time, not at catalogue read. Local entries are
+ * returned as-is (no cleanup).
+ */
+async function resolveEntry(
+  harness: HarnessEntry,
+  ctx: ExtensionCommandContext,
+): Promise<{ entry: HarnessEntry; cleanup?: () => void } | undefined> {
+  if (harness.needsFetch) {
+    ctx.ui.notify(`Fetching official distro '${harness.name}' from GitHub…`, "info");
+    try {
+      const fetched = fetchOfficialDistro(harness.name);
+      return { entry: fetched.entry, cleanup: fetched.cleanup };
+    } catch (err) {
+      ctx.ui.notify(err instanceof Error ? err.message : String(err), "error");
+      return undefined;
+    }
+  }
+  return { entry: harness };
+}
+
+/** Resolve the current catalogue entry for a distro by name (local/user catalogue only —
+ *  no network). Only called for non-GitHub provenance sources; GitHub sources
+ *  are re-fetched directly by the update command. */
 export async function resolveCatalogueEntry(name: string): Promise<HarnessEntry | undefined> {
-  const catalogue = await readCatalogue();
+  const catalogue = readLocalCatalogue();
   return findHarness(name, catalogue);
 }

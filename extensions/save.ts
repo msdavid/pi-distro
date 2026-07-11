@@ -137,11 +137,12 @@ and the full draft. Ask for confirmation or edits. Do NOT proceed until the user
 
 **3. Choose save target.** Ask the user whether to:
   - **(a) Save as a new distro** — ask for a name (validate the slug; if it collides with an
-    existing user distro or a seed name, warn and ask whether to overwrite), then create
+    existing user distro or an official distro name (fetched from GitHub), warn and ask
+    whether to overwrite), then create
     \`~/.pi/harnesses/<name>/\`.
   - **(b) Update an existing distro** — let the user pick from the existing user distros
-    above. Refuse to update a name that is NOT in the existing-user list (those are package
-    seeds and are read-only). Before overwriting, back the old distro up: copy
+    above. Refuse to update a name that is NOT in the existing-user list (official distros
+    live on GitHub and are read-only locally). Before overwriting, back the old distro up: copy
     \`~/.pi/harnesses/<name>/\` to
     \`~/.pi/harnesses/.trash/<name>-<timestamp>/\` (create \`.trash/\` if needed).
     **Bump the version:** read the old distro's \`version\` field and increment it using

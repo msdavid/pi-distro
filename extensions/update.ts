@@ -55,7 +55,7 @@ export async function handleUpdate(pi: ExtensionAPI, ctx: ExtensionCommandContex
       return;
     }
   } else {
-    // Local catalogue (seed or user).
+    // Local catalogue (user distros only — official distros use the github: branch above).
     current = await resolveCatalogueEntry(prov.appliedHarness);
     if (!current) {
       ctx.ui.notify(

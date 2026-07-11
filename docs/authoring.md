@@ -187,14 +187,14 @@ frontmatter + directives) with a provenance header injected at the top of the bo
 <!-- pi-distro provenance
      appliedHarness: <name>
      appliedVersion: <version>
-     sourceCatalogue: <user|seed|none>
+     sourceCatalogue: <user|github:owner/repo[/subpath]>
      lastUpdated: <ISO8601>
 -->
 ```
 
 - `appliedHarness`: the name of the distro that was deployed.
 - `appliedVersion`: the version from the distro frontmatter.
-- `sourceCatalogue`: `seed` (from the package) or `user` (from `~/.pi/harnesses/`).
+- `sourceCatalogue`: `user` (from `~/.pi/harnesses/`) or `github:owner/repo[/subpath]` (official distros are `github:msdavid/pi-distro/harnesses/<name>`).
 - `lastUpdated`: ISO 8601 timestamp of the last apply/save.
 
 The provenance file is updated automatically by the `deploy`, `save`, and `undeploy`

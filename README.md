@@ -26,8 +26,8 @@ existing setup — nothing is silently overwritten.
 # 1. Install the package
 pi install npm:@msdavid/pi-distro
 
-# 2. Deploy a distro (pi-distro-one = a Claude Code-style multi-agent coder)
-/pi-distro deploy pi-distro-one
+# 2. Deploy a distro (cc-knockoff = a Claude Code-style multi-agent coder)
+/pi-distro deploy cc-knockoff
 
 # 3. Restart pi — done.
 ```
@@ -145,7 +145,7 @@ to apply — just the packages you want, or a single extension, or a subset of t
 This is how you combine pieces from different distros to build your own:
 
 ```bash
-/pi-distro pick pi-distro-one     # pick, say, just pi-subagents + the statusline
+/pi-distro pick cc-knockoff     # pick, say, just pi-subagents + the statusline
 /pi-distro pick web-fullstack      # then add web research from another distro
 /pi-distro save                    # snapshot the combination as your own distro
 ```
@@ -166,7 +166,7 @@ doesn't write provenance (it's a custom config, not an applied distro) — run
 ```bash
 /pi-distro status              # shows the applied distro + live config
 /pi-distro list                # lists all available distros
-/pi-distro show pi-distro-one  # dry-run preview of what a distro would do
+/pi-distro show cc-knockoff  # dry-run preview of what a distro would do
 ```
 
 ### Bring your config to any machine
@@ -239,22 +239,31 @@ All interaction happens through a single slash command — there is no standalon
 
 The effective catalogue is the union of:
 
-- **Package seeds** — shipped with `@msdavid/pi-distro` under `harnesses/`. Read straight
-  from the installed package at runtime. Currently:
+- **Official distros** — fetched dynamically from the [`msdavid/pi-distro`](https://github.com/msdavid/pi-distro)
+  repo's `harnesses/` directory on GitHub (no longer bundled inside the npm package, so
+  new official distros ship by pushing to the repo — no npm release needed). The catalogue
+  is listed via the GitHub Contents API and each distro is cloned on demand when you
+  select it. Currently:
   - **minimal** — clean starting point: basic `AGENTS.md` + `.pi/settings.json`.
   - **web-fullstack** — React/Node project with web research, review skills, restricted tools.
-  - **pi-distro-one** — a Claude Code–style multi-agent coder (see below).
+  - **cc-knockoff** — a Claude Code–style multi-agent coder (see below).
 - **User distros** — saved by you to `~/.pi/harnesses/<name>/` via `/pi-distro save`.
-- **GitHub distros** — fetched on-demand from any GitHub repo.
+- **GitHub distros** — fetched on-demand from any GitHub repo (`/pi-distro deploy owner/repo`).
 - **Partial/combined configs** — built from `/pi-distro pick` across multiple distros, then
   saved as a user distro.
 
+Selectors and `/pi-distro list` show each distro's source clearly: **Official** (the
+`msdavid/pi-distro` repo), **Local** (your `~/.pi/harnesses/`), or **GitHub (<owner>/<repo>)**
+for distros from other repos.
+
 On a name collision, the **user distro takes precedence** — save a distro with the same
-name as a seed to override it.
+name as an official distro to override it. Official distros come from a trusted repo (the
+package's own repo), so they skip the GitHub security confirmation that other-repo
+distros require.
 
-### pi-distro-one
+### cc-knockoff
 
-`pi-distro-one` is the author's draft shot at using the most popular pi coding packages to
+`cc-knockoff` is the author's draft shot at using the most popular pi coding packages to
 closely resemble the capabilities of Claude Code. It's opinionated — spawning and
 coordinating autonomous sub-agents is the primary capability, with web research, browser
 automation, live shell, model routing, and task management integrated in support. It
@@ -300,7 +309,9 @@ it's saved to `~/.pi/harnesses/<name>/` with a `README.md` describing the distro
 
 ### Author a distro by hand
 
-Create a directory under `~/.pi/harnesses/<name>/` (or contribute a seed to the package)
+Create a directory under `~/.pi/harnesses/<name>/` (or contribute an official distro via a
+PR to the [`msdavid/pi-distro`](https://github.com/msdavid/pi-distro) repo's `harnesses/`
+dir)
 with a `harness.md` and optional `files/`. See
 [docs/authoring.md](docs/authoring.md) for the complete format reference — frontmatter
 fields, bundled file conventions, directive sections, and merge-don't-clobber

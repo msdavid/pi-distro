@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { parseFrontmatter, serializeFrontmatter, extractBody } from "../extensions/frontmatter.ts";
 import { parsePackageList, parseProvenance } from "../extensions/catalogue.ts";
-import { parseGithubRef, looksLikeGithubRef } from "../extensions/github.ts";
+import { parseGithubRef, looksLikeGithubRef, isOfficialSource, officialSource, officialNameFromSource } from "../extensions/github.ts";
 
 // --- frontmatter ---
 
@@ -77,11 +77,11 @@ test("parsePackageList: ignores non-npm list items", () => {
 // --- provenance ---
 
 test("parseProvenance: parses a provenance header", () => {
-  const content = "<!-- pi-distro provenance\n     appliedHarness: web-fullstack\n     appliedVersion: 1.2.0\n     sourceCatalogue: seed\n     lastUpdated: 2026-07-09T00:00:00Z\n-->";
+  const content = "<!-- pi-distro provenance\n     appliedHarness: web-fullstack\n     appliedVersion: 1.2.0\n     sourceCatalogue: github:msdavid/pi-distro/harnesses/web-fullstack\n     lastUpdated: 2026-07-09T00:00:00Z\n-->";
   const p = parseProvenance(content);
   assert.equal(p?.appliedHarness, "web-fullstack");
   assert.equal(p?.appliedVersion, "1.2.0");
-  assert.equal(p?.sourceCatalogue, "seed");
+  assert.equal(p?.sourceCatalogue, "github:msdavid/pi-distro/harnesses/web-fullstack");
   assert.equal(p?.lastUpdated, "2026-07-09T00:00:00Z");
 });
 
@@ -120,6 +120,35 @@ test("parseGithubRef: rejects invalid input", () => {
 test("looksLikeGithubRef: true for slash refs, false otherwise", () => {
   assert.equal(looksLikeGithubRef("earendil-works/pi"), true);
   assert.equal(looksLikeGithubRef("local-distro-name"), false);
+});
+
+// --- official distro helpers ---
+
+test("isOfficialSource: true for the official repo source", () => {
+  assert.equal(isOfficialSource("github:msdavid/pi-distro/harnesses/minimal"), true);
+  assert.equal(isOfficialSource("github:msdavid/pi-distro/harnesses/cc-knockoff"), true);
+  assert.equal(isOfficialSource("user"), false);
+  assert.equal(isOfficialSource("github:earendil-works/pi"), false);
+});
+
+test("officialSource: builds the source string for a name", () => {
+  assert.equal(officialSource("minimal"), "github:msdavid/pi-distro/harnesses/minimal");
+  assert.equal(officialSource("cc-knockoff"), "github:msdavid/pi-distro/harnesses/cc-knockoff");
+});
+
+test("officialNameFromSource: extracts the distro name", () => {
+  assert.equal(officialNameFromSource("github:msdavid/pi-distro/harnesses/minimal"), "minimal");
+  assert.equal(officialNameFromSource("github:msdavid/pi-distro/harnesses/cc-knockoff"), "cc-knockoff");
+  assert.equal(officialNameFromSource("github:earendil-works/pi"), undefined);
+  assert.equal(officialNameFromSource("user"), undefined);
+});
+
+test("parseGithubRef: official ref msdavid/pi-distro/harnesses/<name>", () => {
+  const r = parseGithubRef("msdavid/pi-distro/harnesses/cc-knockoff")!;
+  assert.equal(r.owner, "msdavid");
+  assert.equal(r.repo, "pi-distro");
+  assert.equal(r.subPath, "harnesses/cc-knockoff");
+  assert.equal(r.displayRef, "msdavid/pi-distro/harnesses/cc-knockoff");
 });
 
 // helper: pull description out of folded scalar for the fold test

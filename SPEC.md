@@ -44,7 +44,7 @@ project's configuration back into the catalogue as a new or updated harness.
 ├── skills/
 │   └── pi-distro/
 │       └── SKILL.md            # the pi-distro skill (name: pi-distro)
-└── harnesses/                  # SEED distros shipped with the package
+└── harnesses/                  # official distros (source of truth on GitHub; NOT shipped in the npm tarball)
     ├── minimal/
     │   ├── harness.md
     │   └── files/              # bundled files deployed into a target project
@@ -86,9 +86,10 @@ project's configuration back into the catalogue as a new or updated harness.
 ```
 
 > No `bin`. The package contributes resources (an extension + a skill), not executables.
-> Seed distros live under `harnesses/` and are **read straight from the package dir at
-> runtime** (never copied into `~/.pi/`). The `files` array includes `harnesses/` so seeds
-> ship in the npm tarball.
+> Official distros live under `harnesses/` in the repo, which is the **source of truth on
+> GitHub** (`msdavid/pi-distro`). They are **not** shipped in the npm tarball (the `files`
+> array in `package.json` omits `harnesses/`) — the catalogue fetches them dynamically via
+> the GitHub Contents API and clones on demand.
 
 ---
 
@@ -188,19 +189,24 @@ mutating the live config, and re-saving as a new distro or updating an existing 
 ## 4. Catalogue
 
 - **Global only** (decision E2): user distros live at `~/.pi/harnesses/<name>/`.
-- **Seeds** (decision E4 — read straight from package dir at runtime): the package ships
-  seed distros under its own `harnesses/` dir. They are read directly from the installed
-  package location at runtime — never copied into `~/.pi/`.
-- **Effective catalogue** = package seeds (from the package `harnesses/` dir) ∪ user
-  distros (from `~/.pi/harnesses/`). On a name collision, the **user distro takes
-  precedence** (so users can override a seed by saving a distro of the same name).
+- **Official distros** (decision E4 — dynamic from GitHub): official distros live in the
+  `harnesses/` directory of the [`msdavid/pi-distro`](https://github.com/msdavid/pi-distro)
+  repo. They are **fetched dynamically** — the catalogue is listed via the GitHub Contents
+  API (one call) + a raw frontmatter fetch per distro, and the selected distro is cloned on
+  demand via `fetchGithubDistro`. They are **not** shipped in the npm package, so new
+  official distros ship by pushing to the repo (no npm release required). Results are
+  cached in-memory for ~5 minutes.
+- **Effective catalogue** = official distros (from GitHub) ∪ user distros (from
+  `~/.pi/harnesses/`). On a name collision, the **user distro takes precedence** (so users
+  can override an official distro by saving a distro of the same name).
 - `~/.pi/harnesses/` is created on demand (first write). A `.trash/` subdirectory holds
   backups of removed harnesses.
-
-### Discovering the package dir at runtime
-The extension resolves its own directory via `import.meta.url` (jiti provides it) and
-reads `<packageDir>/harnesses/*/harness.md` for seeds. User distros come from
-`path.join(os.homedir(), ".pi", "distros", "*", "harness.md")`.
+- Selectors and `/pi-distro list` label each entry's source: **Official** (the
+  `msdavid/pi-distro` repo), **Local** (user-saved), or **GitHub (<owner>/<repo>)** for
+  distros from other repos. Official distros come from a trusted repo and skip the GitHub
+  security confirmation that other-repo distros require.
+- Network failures degrade gracefully: if GitHub is unreachable, official distros are
+  simply omitted and the catalogue falls back to local-only.
 
 ---
 
@@ -218,7 +224,7 @@ provenance header injected at the top of the body:
 <!-- pi-distro provenance
      appliedHarness: <name>
      appliedVersion: <version>
-     sourceCatalogue: <user|seed|none>
+     sourceCatalogue: <user|github:owner/repo[/subpath]>
      lastUpdated: <ISO8601>
 -->
 ```
@@ -261,7 +267,7 @@ the selector. If the named distro is not found, errors with available names.
 with the user (merge-don't-clobber), then update provenance.
 
 **Flow (extension-driven, then agent handoff):**
-1. Read the effective catalogue (seeds ∪ user), parse each `harness.md` frontmatter.
+1. Read the effective catalogue (official ∪ user), parse each `harness.md` frontmatter (official distros via the GitHub Contents API listing).
 2. If empty: `ctx.ui.notify("No distros found. Run /pi-distro save to create one.", "warning")` and return.
 3. Present an interactive selector via `ctx.ui.select("Select a distro to deploy:", items)`
    where each item is formatted as `bold(name) — description` (the name is bolded via
@@ -412,7 +418,7 @@ as a new distro, OR update an existing distro in place. (Decisions D1a, D2.)
    `./.pi/settings.json` (packages, extensions, skills, prompts, themes, tools, models),
    `./.pi/extensions/*`, `./.pi/prompts/*`, `./.pi/skills/**`, `./AGENTS.md`.
 3. List existing **user** distro names from `~/.pi/harnesses/` (so the agent can offer
-   update-existing and refuse seeds).
+   update-existing and refuse official/GitHub distros, which are read-only locally).
 4. Inject a kickoff user message (via `pi.sendUserMessage`) containing the snapshot, the raw
    config files, the existing-distro list, the user distros dir, and the precise save
    procedure (draft → confirm → choose save-as-new vs update-existing → write → backup on
@@ -424,7 +430,7 @@ as a new distro, OR update an existing distro in place. (Decisions D1a, D2.)
      self-contained).
    - **Update existing:** pick from the user-distro list, back the old distro up to
      `~/.pi/harnesses/.trash/<name>-<timestamp>/`, then overwrite `harness.md` and refresh
-     `files/`. Refuse if the chosen distro is a package seed (seeds are read-only).
+     `files/`. Refuse if the chosen distro is an official/GitHub distro (read-only locally).
      **Bump the version:** read the old distro's `version` and increment it (patch for tweaks,
      minor for new capabilities, major for breaking changes). Never keep the same version.
      Propose the bumped version to the user for confirmation.
@@ -437,7 +443,7 @@ as a new distro, OR update an existing distro in place. (Decisions D1a, D2.)
 
 Print a table to the agent output (via `pi.sendUserMessage` of a formatted block, or
 `ctx.ui.notify` for a compact summary). Columns: `NAME`, `TITLE`, `VERSION`, `SOURCE`
-(seed/user), `DESCRIPTION`. Group seeds first, then user distros, alphabetical within
+(Official/Local/GitHub), `DESCRIPTION`. Group official distros first, then user distros, alphabetical within
 each group. Show counts.
 
 ### 6.4 `/pi-distro show <name>`
@@ -477,7 +483,7 @@ Reads `./.pi/harness.md` provenance + the live snapshot (`ctx.getSystemPromptOpt
 
 ### 6.6 `/pi-distro remove <name>`
 **Purpose:** delete a distro from the catalogue. (Decision: include remove.)
-- Refuse if `<name>` is a package seed ("'<name>' is a package seed and cannot be removed.").
+- Refuse if `<name>` is a GitHub distro (official or other-repo): "'<name>' is a GitHub distro and cannot be removed locally. Only user-saved distros in ~/.pi/harnesses/ can be removed."
 - If not found → error with available names.
 - Confirm via `ctx.ui.confirm("Remove distro?", "This deletes '~/.pi/harnesses/<name>/'...")`.
 - Back up to `~/.pi/harnesses/.trash/<name>-<timestamp>/` then delete the distro dir.
@@ -532,14 +538,14 @@ A React/Node flavor demonstrating variety.
   packages are installed via `pi install -l`).
 - Optionally `files/.pi/prompts/review.md`: a review prompt template.
 
-### 8.3 `pi-distro-one`
+### 8.3 `cc-knockoff`
 A complete Claude Code–style interactive coding agent distribution. Built around
 autonomous sub-agent spawning and coordination (the primary capability), with web
 research, browser automation, live shell execution, model routing/fallback, and task
 management integrated in support. Bundles a custom Claude-style status-line extension, a
 deep-researcher `AGENTS.md` methodology, and a `.pi/settings.json` with high thinking + UI
 prefs. Ten packages installed via `pi install -l` directives.
-- `harness.md`: title "pi-distro-one", version 0.3.0, tags [full-config, claude-code-style].
+- `harness.md`: title "cc-knockoff", version 0.3.0, tags [full-config, claude-code-style].
 - `files/AGENTS.md`: explore-before-acting working methodology.
 - `files/settings.json`: thinking level, steering, UI prefs (no model/provider/auth, no theme).
 - `files/.pi/extensions/claude-statusline.ts`: Claude-style status-line footer extension.
@@ -560,7 +566,7 @@ prefs. Ten packages installed via `pi install -l` directives.
   non-deterministic handoff in `deploy` and the draft-authoring in `save`). Agent is idle
   after the command handler returns, so no `deliverAs` is needed.
 - Node `fs`/`path`/`os` for catalogue + file operations.
-- `import.meta.url` (+ `fileURLToPath`) to locate the package dir for seeds.
+- `fetch` (Node 22+ global) for the GitHub Contents API and raw frontmatter fetches.
 - Frontmatter parsing: a minimal YAML parser (write a tiny one or read the fenced block; do
   NOT add a runtime yaml dependency — keep the package dependency-free apart from pi peers).
 
@@ -598,12 +604,12 @@ prefs. Ten packages installed via `pi install -l` directives.
 1. `pi install npm:@msdavid/pi-distro` (or `pi install ./` locally) loads the package;
    `/pi-distro` is available as a slash command; the `pi-distro` skill is discoverable.
 2. `/pi-distro` (no arg) prints help listing all subcommands.
-3. `/pi-distro list` prints both seed distros (`minimal`, `web-fullstack`) with
-   SOURCE=seed.
+3. `/pi-distro list` prints the official distros (`minimal`, `web-fullstack`, `cc-knockoff`) with
+   SOURCE=Official, plus any user distros with SOURCE=Local.
 4. `/pi-distro show minimal` prints a resolved preview (frontmatter + bundled files +
    directives), and clearly states nothing is applied.
 5. `/pi-distro show nonexistent` errors with available names.
-6. `/pi-distro deploy` presents a selector including all seeds, and on selection injects a
+6. `/pi-distro deploy` presents a selector including all official distros (labelled [Official]) and user distros (labelled [Local]), and on selection injects a
    kickoff user message containing the directives + bundled-file manifest + merge-don't-clobber
    rule (verifiable from the session transcript / agent behavior).
 7. `/pi-distro status` in a project with no provenance says so; in a deployed project
@@ -612,7 +618,7 @@ prefs. Ten packages installed via `pi install -l` directives.
    and update-existing, writes to `~/.pi/harnesses/<name>/harness.md` (+ `files/`), and
    updates `./.pi/harness.md` provenance.
 9. `/pi-distro remove <name>` deletes a user distro (with backup to `.trash/`) and
-   refuses on a seed.
+   refuses on a GitHub distro (official or other-repo).
 10. `tsc --noEmit` passes (type check clean).
-11. `npm pack --dry-run` includes `extensions/`, `skills/`, `harnesses/`, `docs/`, `README.md`.
+11. `npm pack --dry-run` includes `extensions/`, `skills/`, `docs/`, `README.md` (NOT `harnesses/` — official distros are fetched from GitHub, not shipped).
 12. README + docs/authoring.md + SKILL.md are complete and accurate.

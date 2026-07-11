@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.0 - 2026-07-10
+
+- **Dynamic official distros from GitHub**: official distros (`minimal`, `web-fullstack`,
+  `cc-knockoff`) are no longer bundled inside the npm package. The catalogue fetches them
+  dynamically from the [`msdavid/pi-distro`](https://github.com/msdavid/pi-distro) repo's
+  `harnesses/` directory via the GitHub Contents API (listed cheaply, cloned on demand
+  when selected). Publishing a new official distro now only requires pushing to the repo —
+  no npm release needed. Selectors and `/pi-distro list` label each distro's source
+  clearly: **Official**, **Local**, or **GitHub (<owner>/<repo>)**. Official distros come
+  from the trusted package repo and skip the GitHub security confirmation that other-repo
+  distros require. Network failures degrade gracefully (local-only catalogue).
+- **`harnesses/` removed from the npm tarball**: `package.json` `files` no longer includes
+  `harnesses/`. The directory remains in the repo as the GitHub source of truth.
+- **`/pi-distro status` update check** now also checks official (GitHub) sources for
+  updates via the cached listing, instead of only local sources.
+- **Renamed `pi-distro-one` → `cc-knockoff`**: the distro formerly known as `pi-distro-one`
+  is renamed `cc-knockoff` everywhere (directory, frontmatter, docs). Projects with
+  `appliedHarness: pi-distro-one` provenance will show "no longer in the catalogue" —
+  redeploy as `cc-knockoff` to migrate. No automatic migration is performed.
+
 ## 0.2.0 - 2026-07-08
 
 - **`/pi-distro undeploy`**: the reverse of `deploy` — removes an applied distro from the
@@ -35,7 +55,7 @@
 - **Semantic redundancy check**: the package-conflict check now evaluates semantic overlap
   (different tool names, similar function), not just exact name collisions. Offers
   skip / replace / keep both / cancel.
-- **Auto-expand tool outputs**: pi-distro-one's status-line extension now auto-expands
+- **Auto-expand tool outputs**: cc-knockoff's status-line extension now auto-expands
   tool output on session start (the Ctrl+O effect), while keeping thinking blocks hidden.
 - **Per-distro README.md**: saved distros now include a `README.md` with an extended
   human-readable description. All seed distros ship one too.

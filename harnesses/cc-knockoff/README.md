@@ -1,4 +1,4 @@
-# pi-distro-one
+# cc-knockoff
 
 A complete Claude Code–style coding agent configuration for pi. The primary capability is
 spawning and coordinating autonomous sub-agents; everything else — web research, browser

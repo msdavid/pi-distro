@@ -40,7 +40,8 @@ When you receive a kickoff message from the `deploy` command, it contains:
 - The merge-don't-clobber rule.
 - An instruction to write/update provenance.
 
-The distro may come from the local catalogue (seed or user-saved) or from GitHub
+The distro may come from the local catalogue (official, fetched from GitHub, or
+user-saved) or directly from another GitHub repo
 (`/pi-distro deploy owner/repo`). For GitHub distros, the extension has already
 cloned the repo, displayed a security warning + preview, and obtained the user's
 explicit confirmation before sending the kickoff — so you can proceed normally.
@@ -130,15 +131,15 @@ them from there as usual.
    <!-- pi-distro provenance
         appliedHarness: <name>
         appliedVersion: <version>
-        sourceCatalogue: <user|seed|none>
+        sourceCatalogue: <user|github:owner/repo[/subpath]>
         lastUpdated: <ISO8601>
    -->
    ```
 
    - `appliedHarness`: the name of the distro that was deployed.
    - `appliedVersion`: the version from the distro frontmatter.
-   - `sourceCatalogue`: `seed` if it came from the package seeds, `user` if from
-     `~/.pi/harnesses/`.
+   - `sourceCatalogue`: `user` if from `~/.pi/harnesses/`, or
+     `github:owner/repo[/subpath]` (official distros are `github:msdavid/pi-distro/harnesses/<name>`).
    - `lastUpdated`: current timestamp in ISO 8601 format.
 
 6. **Report.** Summarise what was deployed, merged, skipped, and any packages installed.
@@ -296,10 +297,10 @@ be bundled.
    the kickoff message exactly:
    - Ask the user whether to **save as a new distro** or **update an existing distro**.
    - If **save as new**: validate the slug; warn on collisions with existing user
-     distros or seed names and ask whether to overwrite.
+     distros or official distro names (fetched from GitHub) and ask whether to overwrite.
    - If **update existing**: let the user pick from the existing user distros listed in
-     the kickoff. Refuse to update names not in that list (those are read-only package
-     seeds). Back the old distro up to `~/.pi/harnesses/.trash/<name>-<timestamp>/` before
+     the kickoff. Refuse to update names not in that list (official/GitHub distros are
+     read-only locally). Back the old distro up to `~/.pi/harnesses/.trash/<name>-<timestamp>/` before
      overwriting. **Bump the version**: read the old distro's `version` and increment it
      with semver — **patch** for small tweaks/bug fixes, **minor** for new capabilities or
      config additions, **major** for breaking changes (removed packages, changed

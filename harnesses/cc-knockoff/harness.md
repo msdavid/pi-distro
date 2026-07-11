@@ -1,12 +1,12 @@
 ---
-name: pi-distro-one
-title: pi-distro-one
+name: cc-knockoff
+title: cc-knockoff
 description: "A Claude Code–style coding agent distribution built around autonomous sub-agent spawning and coordination, with web research, browser automation, live shell, model routing, and task management in support. Includes a Claude-style status line and an explore-before-acting approach."
 version: 0.3.0
 tags: [full-config, claude-code-style]
 ---
 
-# pi-distro-one
+# cc-knockoff
 
 A complete interactive coding agent configuration that attempts to mimic as closely as
 possible the functionality of today's Claude Code. The primary capability is spawning and

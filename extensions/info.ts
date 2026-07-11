@@ -7,7 +7,7 @@ import type {
   ExtensionAPI,
   ExtensionCommandContext,
 } from "@earendil-works/pi-coding-agent";
-import { readFileSync, existsSync, readdirSync, mkdirSync, cpSync, rmSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, cpSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 import {
@@ -15,8 +15,10 @@ import {
   findHarness,
   parseProvenance,
   getUserHarnessesDir,
+  sourceLabel,
 } from "./catalogue.ts";
 import { resolveCatalogueEntry } from "./resolve.ts";
+import { isOfficialSource, officialNameFromSource, listOfficialDistros } from "./github.ts";
 import { display, compareVersions } from "./util.ts";
 
 // --- list ---
@@ -26,17 +28,18 @@ export async function handleList(pi: ExtensionAPI): Promise<void> {
   if (catalogue.length === 0) { display(pi, "No distros found in the catalogue."); return; }
   const rows = catalogue.map((h) => {
     const desc = h.description.length > 50 ? h.description.slice(0, 47) + "..." : h.description;
-    return `| ${h.name} | ${h.title} | ${h.version} | ${h.source} | ${desc} |`;
+    return `| ${h.name} | ${h.title} | ${h.version} | ${sourceLabel(h.source)} | ${desc} |`;
   });
-  const seedCount = catalogue.filter((h) => h.source === "seed").length;
-  const userCount = catalogue.filter((h) => h.source === "user").length;
+  const officialCount = catalogue.filter((h) => isOfficialSource(h.source)).length;
+  const localCount = catalogue.filter((h) => h.source === "user").length;
+  const otherGhCount = catalogue.length - officialCount - localCount;
   display(pi, `## Distro catalogue
 
 | NAME | TITLE | VERSION | SOURCE | DESCRIPTION |
 |------|-------|---------|--------|-------------|
 ${rows.join("\n")}
 
-_Seeds: ${seedCount} · User: ${userCount} · Total: ${catalogue.length}_`);
+_Official: ${officialCount} (GitHub) · Local: ${localCount}${otherGhCount > 0 ? ` · Other GitHub: ${otherGhCount}` : ""} · Total: ${catalogue.length}_`);
 }
 
 // --- status ---
@@ -51,9 +54,24 @@ export async function handleStatus(pi: ExtensionAPI, ctx: ExtensionCommandContex
   if (existsSync(provenancePath)) {
     const prov = parseProvenance(readFileSync(provenancePath, "utf-8"));
     if (prov) {
-      provenanceSection = `### Applied distro\n- **Name:** ${prov.appliedHarness}\n- **Version:** ${prov.appliedVersion}\n- **Source:** ${prov.sourceCatalogue}\n- **Last updated:** ${prov.lastUpdated}`;
-      // Check for updates (local catalogue only; GitHub sources are not auto-fetched on status).
-      if (!prov.sourceCatalogue.startsWith("github:")) {
+      provenanceSection = `### Applied distro\n- **Name:** ${prov.appliedHarness}\n- **Version:** ${prov.appliedVersion}\n- **Source:** ${sourceLabel(prov.sourceCatalogue)}\n- **Last updated:** ${prov.lastUpdated}`;
+      // Check for updates.
+      if (isOfficialSource(prov.sourceCatalogue)) {
+        // Official: cheap version check via the cached GitHub listing (no clone).
+        const officialName = officialNameFromSource(prov.sourceCatalogue);
+        const current = (await listOfficialDistros()).find((h) => h.name === officialName);
+        if (current) {
+          const cmp = compareVersions(current.version, prov.appliedVersion);
+          if (cmp > 0) {
+            updateSection = `### Update available\n**${prov.appliedHarness}** v${prov.appliedVersion} → v${current.version}. Run \`/pi-distro update\` to apply.`;
+          } else if (cmp < 0) {
+            updateSection = `### Version note\nApplied v${prov.appliedVersion} is newer than the official catalogue's v${current.version} (downgrade).`;
+          } // same version → no section
+        } else {
+          updateSection = `### Update check\nOfficial distro '${prov.appliedHarness}' is no longer in the catalogue (removed or renamed).`;
+        }
+      } else if (!prov.sourceCatalogue.startsWith("github:")) {
+        // Local (user) catalogue.
         const current = await resolveCatalogueEntry(prov.appliedHarness);
         if (current) {
           const cmp = compareVersions(current.version, prov.appliedVersion);
@@ -116,8 +134,8 @@ export async function handleRemove(pi: ExtensionAPI, ctx: ExtensionCommandContex
     ctx.ui.notify(`Distro '${name}' not found. Available: ${available}`, "error");
     return;
   }
-  if (harness.source === "seed") {
-    ctx.ui.notify(`'${name}' is a package seed and cannot be removed.`, "error");
+  if (harness.source.startsWith("github:")) {
+    ctx.ui.notify(`'${name}' is a GitHub distro (${sourceLabel(harness.source)}) and cannot be removed locally. Only user-saved distros in ~/.pi/harnesses/ can be removed.`, "error");
     return;
   }
   const confirmed = await ctx.ui.confirm("Remove harness?", `This deletes '~/.pi/harnesses/${name}/'. A backup will be saved to .trash/.`);
@@ -127,7 +145,7 @@ export async function handleRemove(pi: ExtensionAPI, ctx: ExtensionCommandContex
   const userDir = getUserHarnessesDir();
   const trashDir = join(userDir, ".trash", `${name}-${Date.now()}`);
   mkdirSync(trashDir, { recursive: true });
-  cpSync(harness.dir, join(trashDir, name), { recursive: true });
-  rmSync(harness.dir, { recursive: true, force: true });
+  cpSync(harness.dir!, join(trashDir, name), { recursive: true });
+  rmSync(harness.dir!, { recursive: true, force: true });
   ctx.ui.notify(`Removed distro '${name}'. (Backup in ~/.pi/harnesses/.trash/)`, "info");
 }

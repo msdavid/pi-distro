@@ -11,7 +11,7 @@ import { join } from "node:path";
 
 import { listBundledFiles, parsePackageList } from "./catalogue.ts";
 import { extractBody } from "./frontmatter.ts";
-import { parseGithubRef } from "./github.ts";
+import { parseGithubRef, isOfficialSource } from "./github.ts";
 import { resolveDistro } from "./resolve.ts";
 import { buildShowPreview } from "./show.ts";
 import {
@@ -27,8 +27,9 @@ export async function handlePick(pi: ExtensionAPI, ctx: ExtensionCommandContext,
   if (!resolved) return;
   const { entry, cleanup } = resolved;
 
-  // GitHub trust gate (same as deploy — the user must confirm before anything is applied).
-  if (cleanup) {
+  // GitHub trust gate — official distros are trusted and skip the warning;
+  // other GitHub refs require explicit user confirmation.
+  if (cleanup && !isOfficialSource(entry.source)) {
     const ref = parseGithubRef(nameArg!)!;
     const preview = await buildShowPreview(entry);
     const warning = `\n\n---\n\n⚠️ **Security warning:** This distro was fetched from \`${ref.displayRef}\` on GitHub. Picking components from an unknown distro is still **dangerous** — packages can execute code, extensions run at startup, and directives inject agent instructions. Review everything above carefully. You are responsible for what you install.`;
@@ -45,7 +46,7 @@ export async function handlePick(pi: ExtensionAPI, ctx: ExtensionCommandContext,
   }
 
   // Parse the distro into selectable components.
-  const fullMd = readFileSync(entry.harnessMdPath, "utf-8");
+  const fullMd = readFileSync(entry.harnessMdPath!, "utf-8");
   const directives = extractBody(fullMd);
   const packages = parsePackageList(directives);
   const files = entry.filesDir ? await listBundledFiles(entry.filesDir) : [];

@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { listBundledFiles, parseProvenance } from "./catalogue.ts";
 import type { HarnessEntry } from "./catalogue.ts";
 import { extractBody } from "./frontmatter.ts";
-import { parseGithubRef } from "./github.ts";
+import { parseGithubRef, isOfficialSource } from "./github.ts";
 import { resolveDistro } from "./resolve.ts";
 import { buildShowPreview } from "./show.ts";
 import {
@@ -31,7 +31,7 @@ export async function sendDeployKickoff(
   ctx: ExtensionCommandContext,
   harness: HarnessEntry,
 ): Promise<void> {
-  const body = readFileSync(harness.harnessMdPath, "utf-8");
+  const body = readFileSync(harness.harnessMdPath!, "utf-8");
   const directives = extractBody(body);
   const files = harness.filesDir ? await listBundledFiles(harness.filesDir) : [];
   const fileList = files.length > 0
@@ -119,8 +119,9 @@ export async function handleDeploy(pi: ExtensionAPI, ctx: ExtensionCommandContex
   if (!resolved) return;
   const { entry, cleanup } = resolved;
 
-  // GitHub trust gate (local distros are trusted by being in the catalogue).
-  if (cleanup) {
+  // GitHub trust gate — official distros (msdavid/pi-distro) are trusted and skip
+  // the warning; other GitHub refs require explicit user confirmation.
+  if (cleanup && !isOfficialSource(entry.source)) {
     const ref = parseGithubRef(nameArg!)!;
     const preview = await buildShowPreview(entry);
     const warning = `\n\n---\n\n⚠️ **Security warning:** This distro was fetched from \`${ref.displayRef}\` on GitHub. Installing unknown distros is **dangerous** — they can install arbitrary packages, write extensions that execute code, and inject agent instructions. Review everything above carefully before proceeding. You are responsible for what you install.`;

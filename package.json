@@ -1,6 +1,6 @@
 {
   "name": "@msdavid/pi-distro",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Reusable, composable configurations for the pi coding agent — seed distros, project snapshots, and GitHub sharing with version-aware updates.",
   "type": "module",
   "license": "MIT",
@@ -28,7 +28,6 @@
   "files": [
     "extensions",
     "skills",
-    "harnesses",
     "README.md",
     "docs",
     "LICENSE",

@@ -7,15 +7,15 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
-import { readFullHarnessMd, listBundledFiles, readCatalogue, findHarness, parsePackageList } from "./catalogue.ts";
+import { readFullHarnessMd, listBundledFiles, readCatalogue, findHarness, parsePackageList, sourceLabel } from "./catalogue.ts";
 import type { HarnessEntry } from "./catalogue.ts";
 import { parseFrontmatter, extractBody } from "./frontmatter.ts";
-import { looksLikeGithubRef, parseGithubRef, fetchGithubDistro } from "./github.ts";
+import { looksLikeGithubRef, parseGithubRef, fetchGithubDistro, fetchOfficialDistro } from "./github.ts";
 import { display } from "./util.ts";
 
 /** Build the dry-run preview for a harness (used by local and GitHub show). */
 export async function buildShowPreview(harness: HarnessEntry): Promise<string> {
-  const fullMd = await readFullHarnessMd(harness.harnessMdPath);
+  const fullMd = await readFullHarnessMd(harness.harnessMdPath!);
   const fm = parseFrontmatter(fullMd);
   const body = extractBody(fullMd);
   const packages = parsePackageList(body);
@@ -41,7 +41,7 @@ export async function buildShowPreview(harness: HarnessEntry): Promise<string> {
 - **Description:** ${fm?.description ?? harness.description}
 - **Version:** ${fm?.version ?? harness.version}
 - **Tags:** ${tags}
-- **Source:** ${harness.source}
+- **Source:** ${sourceLabel(harness.source)}
 
 ### pi packages to install
 ${packages.length > 0 ? packages.map((p) => `- \`${p}\``).join("\n") : "_(none)_"}
@@ -84,12 +84,29 @@ export async function handleShow(pi: ExtensionAPI, name?: string): Promise<void>
     return;
   }
 
-  // Local catalogue
+  // Local catalogue (official distros appear here as needsFetch listing entries;
+  // user distros are read straight from disk).
   const catalogue = await readCatalogue();
   const harness = findHarness(name, catalogue);
   if (!harness) {
     const available = catalogue.map((h) => h.name).join(", ") || "(none)";
     display(pi, `Distro '${name}' not found. Available: ${available}`);
+    return;
+  }
+  // Official listing entry — fetch the actual distro from GitHub before previewing.
+  if (harness.needsFetch) {
+    let fetched;
+    try {
+      fetched = fetchOfficialDistro(harness.name);
+    } catch (err) {
+      display(pi, `**Error:** ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
+    try {
+      display(pi, await buildShowPreview(fetched.entry));
+    } finally {
+      fetched.cleanup();
+    }
     return;
   }
   display(pi, await buildShowPreview(harness));

@@ -1,25 +1,30 @@
 /**
  * Catalogue reading logic for pi-distro.
  *
- * Reads seed harnesses from the installed package dir and user harnesses
- * from ~/.pi/harnesses/. On name collision, user takes precedence.
+ * The effective catalogue is the union of:
+ *   - **Official distros** — fetched dynamically from `msdavid/pi-distro`'s
+ *     `harnesses/` directory on GitHub (no longer bundled in the npm package).
+ *   - **User distros** — saved locally to `~/.pi/harnesses/`.
+ * On a name collision, the user distro takes precedence (so a user can override
+ * an official distro by saving one with the same name).
  */
 
 import { readdirSync, readFileSync, existsSync } from "node:fs";
-import { join, dirname, relative } from "node:path";
+import { join, relative } from "node:path";
 import { homedir } from "node:os";
-import { fileURLToPath } from "node:url";
 import { parseFrontmatter, extractBody } from "./frontmatter.ts";
+import { listOfficialDistros, isOfficialSource } from "./github.ts";
 
 export interface HarnessEntry {
   name: string;
   title: string;
   description: string;
   version: string;
-  source: string;  // "seed", "user", or "github:<owner>/<repo>[/subpath]"
-  dir: string;
-  harnessMdPath: string;
+  source: string;  // "user", "github:owner/repo[/subpath]", or official "github:msdavid/pi-distro/harnesses/<name>"
+  dir?: string;            // on-disk dir (user distros, or a fetched GitHub clone). Absent for official *listing* entries.
+  harnessMdPath?: string;  // path to harness.md. Absent for official *listing* entries (fetched on selection).
   filesDir?: string;
+  needsFetch?: boolean;    // true for official listing entries — must fetchGithubDistro before use
 }
 
 export interface BundledFile {
@@ -64,11 +69,13 @@ export function parseProvenance(content: string): Provenance | null {
   };
 }
 
-/** Synchronous catalogue name read for autocomplete (best-effort). */
+/** Synchronous catalogue name read for autocomplete (best-effort, local only).
+ *  Official distros live on GitHub and aren't available to synchronous
+ *  tab-completion — they appear once a command runs and reads the catalogue. */
 export function getCatalogueNamesSync(): string[] {
+  const dir = getUserHarnessesDir();
   const names: string[] = [];
-  for (const dir of [getSeedHarnessesDir(), getUserHarnessesDir()]) {
-    if (!existsSync(dir)) continue;
+  if (existsSync(dir)) {
     try {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
         if (entry.isDirectory() && entry.name !== ".trash" && existsSync(join(dir, entry.name, "harness.md"))) {
@@ -80,44 +87,36 @@ export function getCatalogueNamesSync(): string[] {
   return [...new Set(names)].sort();
 }
 
-/**
- * Resolve the package root directory (the dir containing package.json).
- * Uses import.meta.url — in extensions/index.ts this resolves to the
- * extensions/ dir, so the package dir is one level up.
- */
-export function getPackageDir(): string {
-  const extensionsDir = dirname(fileURLToPath(import.meta.url));
-  return dirname(extensionsDir);
-}
-
-/** Directory containing seed harnesses shipped with the package. */
-export function getSeedHarnessesDir(): string {
-  return join(getPackageDir(), "harnesses");
-}
-
 /** Directory containing user-saved harnesses (~/.pi/harnesses/). */
 export function getUserHarnessesDir(): string {
   return join(homedir(), ".pi", "harnesses");
 }
 
 /**
- * Read the effective catalogue: seeds ∪ user harnesses.
+ * Read the effective catalogue: official distros (GitHub, dynamic) ∪ user harnesses.
  * On name collision, user takes precedence.
- * Returns sorted: seeds first (alphabetical), then user (alphabetical).
+ * Returns sorted: official first (alphabetical), then user (alphabetical).
+ * Never throws on network failure — official distros are simply omitted and the
+ * catalogue degrades to local-only.
  */
 export async function readCatalogue(): Promise<HarnessEntry[]> {
-  const seeds = readHarnessesFromDir(getSeedHarnessesDir(), "seed");
+  const official = await listOfficialDistros();
   const users = readHarnessesFromDir(getUserHarnessesDir(), "user");
 
   // User takes precedence on collision
   const userNames = new Set(users.map((u) => u.name));
-  const filteredSeeds = seeds.filter((s) => !userNames.has(s.name));
+  const filteredOfficial = official.filter((o) => !userNames.has(o.name));
 
-  // Sort each group alphabetically
-  filteredSeeds.sort((a, b) => a.name.localeCompare(b.name));
+  filteredOfficial.sort((a, b) => a.name.localeCompare(b.name));
   users.sort((a, b) => a.name.localeCompare(b.name));
 
-  return [...filteredSeeds, ...users];
+  return [...filteredOfficial, ...users];
+}
+
+/** Read only local (user) harnesses — no network. Used by update/status local
+ *  resolution and anywhere a network call is undesirable. */
+export function readLocalCatalogue(): HarnessEntry[] {
+  return readHarnessesFromDir(getUserHarnessesDir(), "user");
 }
 
 /** Find a harness by name in the catalogue. */
@@ -156,7 +155,7 @@ export async function readFullHarnessMd(harnessMdPath: string): Promise<string> 
 
 function readHarnessesFromDir(
   dir: string,
-  source: "seed" | "user",
+  source: "user",
 ): HarnessEntry[] {
   if (!existsSync(dir)) return [];
 
@@ -218,4 +217,14 @@ function walkDir(
       results.push({ source: rel, target: rel });
     }
   }
+}
+
+// --- Source labelling (for selectors / list / status) ---
+
+/** A short human label for a distro source, shown in selectors and lists. */
+export function sourceLabel(source: string): string {
+  if (isOfficialSource(source)) return "Official";
+  if (source === "user") return "Local";
+  if (source.startsWith("github:")) return `GitHub (${source.slice("github:".length)})`;
+  return source;
 }

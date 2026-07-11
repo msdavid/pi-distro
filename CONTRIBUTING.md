@@ -14,8 +14,9 @@ ship compiled output.
   list, show, status, remove) and its helpers (`catalogue.ts`, `frontmatter.ts`,
   `github.ts`).
 - `skills/pi-distro/SKILL.md` — the agent-side guidance loaded on demand.
-- `harnesses/` — the seed distros (`minimal`, `pi-distro-one`, `web-fullstack`).
-  Each is a directory with `harness.md` + `files/`.
+- `harnesses/` — the official distros (`minimal`, `cc-knockoff`, `web-fullstack`).
+  Each is a directory with `harness.md` + `files/`. This dir is the source of truth on
+  GitHub and is **not** shipped in the npm tarball (the catalogue fetches it dynamically).
 - `docs/authoring.md` — the distro format reference (shipped in the package).
 
 Please read [`AGENTS.md`](./AGENTS.md) first — it codifies the conventions this
