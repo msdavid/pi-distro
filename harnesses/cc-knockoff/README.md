@@ -21,6 +21,25 @@ makes a great starting point to fork and make your own.
   Auto-enables on session start and **auto-expands tool outputs** (the Ctrl+O effect) so
   full output is visible by default. Toggle with the `/claude-statusline` command.
 
+## EYU (Explain Your Understanding)
+
+The `AGENTS.md` includes an **EYU** rule: when you say "EYU", the agent summarizes its
+understanding of your request, then stops and waits for your approval before acting.
+
+Two purposes:
+
+1. **Reason first** — the agent explores the codebase and thinks through the request
+   before responding, so its summary reflects real understanding, not a guess.
+2. **Confirm alignment** — what you think you need and what the model has interpreted
+   rarely match exactly. EYU surfaces that gap before any code is written, so you can
+   correct course cheaply.
+
+Use it for ambiguous, multi-step, or high-stakes tasks where acting on a
+misinterpretation would be costly — and especially when describing complex, abstract
+concepts that are hard to put into a precise prompt. EYU lets the model confirm its
+understanding and produce a summary you can verify captured the logic, so you can
+validate the hard-to-articulate parts before work begins.
+
 ## Packages installed (all project-local)
 
 | Package | What it does |
