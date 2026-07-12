@@ -2,7 +2,7 @@
 name: cc-knockoff
 title: cc-knockoff
 description: "A Claude Code–style coding agent distribution built around autonomous sub-agent spawning and coordination, with web research, browser automation, live shell, model routing, and task management in support. Includes a Claude-style status line and an explore-before-acting approach."
-version: 1.1.0
+version: 1.2.0
 tags: [full-config, claude-code-style]
 ---
 
@@ -24,7 +24,6 @@ project-local file is a single file, concatenate within it.
 
 - `files/.pi/APPEND_SYSTEM.md` → `./.pi/APPEND_SYSTEM.md`
 - `files/settings.json` → `./.pi/settings.json` (merge with existing settings)
-- `files/.pi/extensions/claude-statusline.ts` → `./.pi/extensions/claude-statusline.ts`
 
 ## pi packages to install
 Use `pi install -l` to install the following **project-locally** (writes to
@@ -39,6 +38,11 @@ array — `pi install -l` is the single registration mechanism.
 - `npm:pi-web-access` — web search, URL fetching, GitHub cloning, PDF/video extraction
 - `npm:pi-agent-browser-native` — real browser automation and web interaction
 - `npm:pi-bash-live-view` — live terminal rendering for shell commands
+- `npm:pi-cc-status` — Claude Code–style status-line footer (model | dir | thinking level |
+  context-window bar gauge + cache % | git branch status), plus optional session/cost/tokens/
+  version/providers segments, an accessibility mode, and a command mode that runs existing
+  Claude Code statusline scripts verbatim. Auto-enables on session start; toggle with
+  `/cc-status`, re-read config with `/cc-status:reload`, edit it with `/cc-status:edit`
 - `npm:@yeliu84/pi-model-router` — model routing / fallback across providers
 - `npm:@robhowley/pi-openrouter` — OpenRouter provider integration
 - `npm:@juicesharp/rpiv-todo` — task list management
@@ -169,20 +173,9 @@ user declines a category, skip it and move on; they can install any of these lat
   separate surface (a VS Code extension, e.g. `pi-vscode-sr`), not a pi package; out of
   scope for this distro to install, but worth mentioning if the user asks.
 
-## Custom extension (bundled)
-`files/.pi/extensions/claude-statusline.ts` is a Claude-style status-line footer
-(model | dir | thinking level | context-window bar gauge + cache % | git branch status).
-It auto-enables on session start and is toggleable via the `/claude-statusline` command.
-It also **collapses tool outputs** on session start (disables the Ctrl+O effect) so the
-working view stays clean, and thinking blocks are hidden by default.
-Deploy it to `./.pi/extensions/claude-statusline.ts`; pi loads it via jiti on next start
-(no build step). It depends only on pi core (`@earendil-works/pi-coding-agent`,
-`@earendil-works/pi-ai`, `@earendil-works/pi-tui`) — all provided as peer deps.
-
 ## Settings (bundled)
 `files/settings.json` provides the agent's defaults: high thinking level, one-at-a-time
-steering, hidden thinking blocks, and hardware cursor. Tool outputs are collapsed on
-start (via the status-line extension) for a clean working view. Merge with any existing `.pi/settings.json`
+steering, hidden thinking blocks, and hardware cursor. Merge with any existing `.pi/settings.json`
 field-by-field. Auth and model/provider configuration are not part of this distribution —
 configure those independently.
 

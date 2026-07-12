@@ -19,10 +19,6 @@ makes a great starting point to fork and make your own.
   project-specific context.
 - **`.pi/settings.json`** — high thinking level, one-at-a-time steering, hidden thinking
   blocks, and hardware cursor.
-- **`.pi/extensions/claude-statusline.ts`** — a Claude-style status-line footer
-  (model | dir | thinking level | context-window bar gauge + cache % | git branch status).
-  Auto-enables on session start and **collapses tool outputs** (disables the Ctrl+O
-  effect) so the working view stays clean. Toggle with the `/claude-statusline` command.
 
 ## EYU (Explain Your Understanding)
 
@@ -56,6 +52,7 @@ Each row pairs a Claude Code feature with the pi package that provides it.
 | Web search / fetch | `npm:pi-web-access` | Web search, URL fetching, GitHub cloning, PDF/video extraction |
 | Browser (Chrome) automation | `npm:pi-agent-browser-native` | Real browser automation and web interaction |
 | Live terminal | `npm:pi-bash-live-view` | Live terminal rendering for shell commands |
+| Status line | `npm:pi-cc-status` | Claude Code–style status-line footer (model, dir, thinking level, context bar + cache %, git) with optional segments, accessibility mode, and command mode for reusing existing Claude Code statusline scripts verbatim; toggle with `/cc-status` |
 | Model routing | `npm:@yeliu84/pi-model-router` | Model routing / fallback across providers |
 | Provider integration (OpenRouter) | `npm:@robhowley/pi-openrouter` | OpenRouter provider integration |
 | Todos | `npm:@juicesharp/rpiv-todo` | Task list management |
