@@ -1,8 +1,8 @@
 ---
 name: trip-planner
 title: Trip Planner Agent
-description: "A research-first trip planning configuration — replaces pi's default coder prompt with a trip-planner system prompt (investigate-before-book methodology, 7-stage workflow, document/booklet/map deliverables), web/browser access for live fares, sub-agents for parallel research, todos & goals for booking tracking, plus a Claude-style status line."
-version: 0.2.0
+description: "A research-first trip planning configuration — replaces pi's default coder prompt with a trip-planner system prompt (investigate-before-book methodology, 7-stage workflow, document/booklet/map deliverables), web/browser access for live fares, sub-agents for parallel research, todos & goals for booking tracking, plus a Claude-style status line via the pi-cc-status package."
+version: 0.3.0
 tags: [trip-planning, travel, research, documentation]
 ---
 
@@ -14,8 +14,8 @@ fares, schedules, and availability via web/browser tools), follows a 7-stage pla
 workflow (anchor → wishlist → date skeleton → transport → accommodation → day-by-day →
 budget), produces structured trip documents (markdown + single-file HTML booklet +
 CSV-sourced Google My Maps), and tracks bookings with todos, goals, and structured
-clarifying questions. A Claude-style status line keeps model, context-window usage, cache
-%, and git status visible.
+clarifying questions. A Claude-style status line (provided by the `pi-cc-status`
+package) keeps model, context-window usage, cache %, and git status visible.
 
 ## Bundled files
 The following bundled files are provided under `files/` and should be placed into the
@@ -27,7 +27,6 @@ by appending under a delimited section).
 - `files/.pi/SYSTEM.md` → `./.pi/SYSTEM.md` (**replaces pi's default system prompt**)
 - `files/AGENTS.md` → `./AGENTS.md` (placeholder for trip-specific details)
 - `files/settings.json` → `./.pi/settings.json` (merge with existing settings)
-- `files/.pi/extensions/claude-statusline.ts` → `./.pi/extensions/claude-statusline.ts`
 
 ## System prompt (bundled)
 `files/.pi/SYSTEM.md` replaces pi's default coding-assistant system prompt with a
@@ -52,22 +51,21 @@ methodology lives in `.pi/SYSTEM.md`. Pi auto-loads `AGENTS.md` as a context fil
 appends it after the system prompt, so whatever the user fills in gets injected into
 context.
 
-## Custom extension (bundled)
-`files/.pi/extensions/claude-statusline.ts` is a Claude-style status-line footer
-(model | dir | thinking level | context-window bar gauge + cache % | git branch status).
-It auto-enables on session start, auto-expands tool outputs on start (the Ctrl+O effect)
-so full output is visible by default, and keeps thinking blocks hidden via settings. It
-is toggleable via the `/claude-statusline` command. Deploy it to
-`./.pi/extensions/claude-statusline.ts`; pi loads it via jiti on next start (no build
-step). It depends only on pi core (`@earendil-works/pi-coding-agent`,
-`@earendil-works/pi-ai`, `@earendil-works/pi-tui`) — all provided as peer deps.
+## Status line (via package)
+The Claude-style status-line footer is provided by the `pi-cc-status` package (see "pi
+packages to install" below), not by a bundled extension. It renders model | dir |
+thinking level | context-window bar gauge + cache % | git branch status by default, with
+optional session/cost/tokens/version/providers segments, an accessibility mode, and a
+command mode that runs existing Claude Code statusline scripts verbatim. It is
+toggleable via `/cc-status` and configured via `~/.pi/agent/cc-status/config.json` or
+`<cwd>/.pi/cc-status/config.json` (run `/cc-status:reload` after edits); enabled by
+default.
 
 ## Settings (bundled)
 `files/settings.json` provides the agent's defaults: high thinking level, one-at-a-time
-steering, hidden thinking blocks, hardware cursor, and tree-filter mode. Tool outputs are
-auto-expanded on start (via the status-line extension). Merge with any existing
-`.pi/settings.json` field-by-field. Auth and model/provider configuration are not part of
-this distribution — configure those independently.
+steering, hidden thinking blocks, hardware cursor, and tree-filter mode. Merge with any
+existing `.pi/settings.json` field-by-field. Auth and model/provider configuration are
+not part of this distribution — configure those independently.
 
 ## pi packages to install
 Use `pi install -l` to install the following **project-locally** (writes to
@@ -98,6 +96,14 @@ the user before each install. Do NOT pre-add these to the bundled `settings.json
   coding-tool access that runs immediately while the main agent is still busy, keeps a
   continuous thread by default (or contextless via `/btw:tangent`), and lets you inject
   the thread or a summary back into the main agent.
+- `npm:pi-cc-status` — a Claude Code–style status-line footer (model, dir, thinking
+  level, context-window bar + cache %, git branch status, plus optional
+  session/cost/tokens/version/providers segments). Theme-integrated default renderer
+  with configurable layout/colors/thresholds and an accessibility mode, plus a command
+  mode that runs existing Claude Code statusline scripts verbatim. Toggle with
+  `/cc-status`; config at `~/.pi/agent/cc-status/config.json` or
+  `<cwd>/.pi/cc-status/config.json` (`/cc-status:reload` after edits); enabled by
+  default.
 - `npm:@mrclrchtr/supi-prompt-suggestions` — advisory ghost-text prompt suggestions:
   after each assistant response, suggests a concise next prompt as dim ghost text in the
   editor (accept with →, dismiss with Esc); ships disabled by default — the deploying

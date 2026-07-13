@@ -2,7 +2,8 @@
 
 A pi distro that turns pi into a trip-planning assistant. It replaces pi's default
 coding-assistant system prompt with a trip-planner system prompt, bundles the tools
-useful for travel research, and ships a Claude-style status line.
+useful for travel research, and adds a Claude-style status line via the
+`pi-cc-status` package.
 
 ## What it sets up
 
@@ -35,14 +36,16 @@ travellers, anchors, booking specifics) gets injected into context.
 thinking blocks, hardware cursor. Bundled without the packages array (packages are
 registered via `pi install -l` on deploy).
 
-**Extension (`.pi/extensions/claude-statusline.ts`)** — A Claude-style status-line footer
+**Status line (`pi-cc-status` package)** — a Claude Code–style status-line footer
 showing model, directory, thinking level, a context-window bar gauge with cache %, and
-git branch status. Auto-expands tool outputs on start; toggleable via
-`/claude-statusline`.
+git branch status, plus optional session/cost/tokens/version/providers segments.
+Theme-integrated renderer with configurable layout and an accessibility mode, plus a
+command mode that runs existing Claude Code statusline scripts verbatim. Toggle with
+`/cc-status`; configure via `.pi/cc-status/config.json`. Enabled by default.
 
 ## Packages it installs
 
-Nine pi packages, all project-local:
+Ten pi packages, all project-local:
 
 - **`@tintinweb/pi-subagents`** — parallel research sub-agents (the core capability for
   fan-out research across destinations or transport modes)
@@ -55,6 +58,9 @@ Nine pi packages, all project-local:
 - **`@juicesharp/rpiv-ask-user-question`** — structured clarifying questions instead of
   guessing on judgment calls
 - **`pi-btw`** — `/btw` side conversation channel for parallel work
+- **`pi-cc-status`** — Claude Code–style status line (model, dir, context bar + cache %,
+  git, plus optional session/cost/tokens segments); command mode runs existing Claude
+  Code statusline scripts verbatim
 - **`@mrclrchtr/supi-prompt-suggestions`** — ghost-text prompt suggestions (disabled by
   default; the deployer configures the suggestion model with you during deploy, or you
   can edit `.pi/supi/config.json` later)
