@@ -32,17 +32,35 @@ export interface BundledFile {
   target: string;
 }
 
+export interface PackageEntry {
+  source: string;
+  scope: "local" | "global";  // author hint; the user's deploy-time preset still governs
+}
+
 /** Parse pi package references (npm:...) from a directives body. */
 export function parsePackageList(body: string): string[] {
-  const packages: string[] = [];
+  return parsePackageListWithScope(body).map((p) => p.source);
+}
+
+/** Parse pi package references with their author-specified scope hint.
+ *  A package may be suffixed with `(global)` to suggest global install; otherwise
+ *  the default scope is `local`. The hint is a *default* — the user's deploy-time
+ *  preset (accept-defaults / all-global / customize) still governs the final scope. */
+export function parsePackageListWithScope(body: string): PackageEntry[] {
+  const packages: PackageEntry[] = [];
   let inSection = false;
   for (const line of body.split("\n")) {
     const t = line.trim();
     if (/^##\s+pi\s*packages/i.test(t)) { inSection = true; continue; }
     if (inSection) {
-      if (/^##\s/.test(t)) { inSection = false; continue; }
-      const m = t.match(/^-\s+`(npm:[^`]+)`/);
-      if (m) packages.push(m[1]);
+      if (/^#{1,2}\s/.test(t)) { inSection = false; continue; } // any h1/h2 ends the section
+      const m = t.match(/^-\s+`(npm:[^`]+)`([^—–]*)/);
+      if (m) {
+        // The scope marker must appear between the package ref and the
+        // description dash — "(global)" inside description prose is ignored.
+        const scopeM = m[2].match(/\((global|local)\)/);
+        packages.push({ source: m[1], scope: scopeM?.[1] === "global" ? "global" : "local" });
+      }
     }
   }
   return packages;
@@ -55,35 +73,53 @@ export interface Provenance {
   lastUpdated: string;
 }
 
-/** Parse the provenance header from a harness.md content. */
+/** Parse the provenance header from a harness.md content. Fields are matched
+ *  independently within the provenance comment block, so their order (and any
+ *  extra fields an agent may have added) doesn't matter. */
 export function parseProvenance(content: string): Provenance | null {
-  const m = content.match(
-    /appliedHarness:\s*(.+?)\s*\n\s*appliedVersion:\s*(.+?)\s*\n\s*sourceCatalogue:\s*(.+?)\s*\n\s*lastUpdated:\s*(.+?)\s*\n/,
-  );
-  if (!m) return null;
-  return {
-    appliedHarness: m[1].trim(),
-    appliedVersion: m[2].trim(),
-    sourceCatalogue: m[3].trim(),
-    lastUpdated: m[4].trim(),
-  };
+  const block = content.match(/<!--\s*pi-distro provenance([\s\S]*?)-->/);
+  if (!block) return null;
+  const field = (name: string): string | undefined =>
+    block[1].match(new RegExp(`${name}:[ \\t]*(.+)`))?.[1].trim();
+  const appliedHarness = field("appliedHarness");
+  const appliedVersion = field("appliedVersion");
+  const sourceCatalogue = field("sourceCatalogue");
+  const lastUpdated = field("lastUpdated");
+  if (!appliedHarness || !appliedVersion || !sourceCatalogue || !lastUpdated) return null;
+  return { appliedHarness, appliedVersion, sourceCatalogue, lastUpdated };
 }
 
-/** Synchronous catalogue name read for autocomplete (best-effort, local only).
- *  Official distros live on GitHub and aren't available to synchronous
- *  tab-completion — they appear once a command runs and reads the catalogue. */
+/** Synchronous catalogue name read for autocomplete (best-effort).
+ *  User distros are read from disk (by frontmatter name, falling back to the
+ *  directory name). Official distros live on GitHub and can't be fetched
+ *  synchronously — but the last successful async listing is cached to
+ *  `.official-cache.json` (see github.ts), so their names complete too once
+ *  any command has read the catalogue. */
 export function getCatalogueNamesSync(): string[] {
   const dir = getUserHarnessesDir();
   const names: string[] = [];
   if (existsSync(dir)) {
     try {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        if (entry.isDirectory() && entry.name !== ".trash" && existsSync(join(dir, entry.name, "harness.md"))) {
-          names.push(entry.name);
+        if (entry.isDirectory() && entry.name !== ".trash") {
+          const harnessMdPath = join(dir, entry.name, "harness.md");
+          if (!existsSync(harnessMdPath)) continue;
+          try {
+            const fm = parseFrontmatter(readFileSync(harnessMdPath, "utf-8"));
+            names.push(fm?.name ?? entry.name);
+          } catch {
+            names.push(entry.name);
+          }
         }
       }
     } catch { /* ignore */ }
   }
+  try {
+    const cached = JSON.parse(readFileSync(join(dir, ".official-cache.json"), "utf-8"));
+    if (Array.isArray(cached)) {
+      for (const n of cached) if (typeof n === "string") names.push(n);
+    }
+  } catch { /* no cache yet — officials appear after the first catalogue read */ }
   return [...new Set(names)].sort();
 }
 

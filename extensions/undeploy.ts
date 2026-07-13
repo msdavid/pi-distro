@@ -12,7 +12,8 @@ import { join } from "node:path";
 
 import { parseProvenance, parsePackageList } from "./catalogue.ts";
 import { extractBody } from "./frontmatter.ts";
-import { readProjectPackages, USER_INVOLVEMENT_RULE } from "./util.ts";
+import { readProjectPackages, readGlobalPackages, USER_INVOLVEMENT_RULE } from "./util.ts";
+import { homedir } from "node:os";
 
 export async function handleUndeploy(pi: ExtensionAPI, ctx: ExtensionCommandContext): Promise<void> {
   const snapshot = ctx.getSystemPromptOptions();
@@ -34,34 +35,57 @@ export async function handleUndeploy(pi: ExtensionAPI, ctx: ExtensionCommandCont
   const directives = extractBody(provContent);
   const packages = parsePackageList(directives);
 
-  // Read current project state to compare against the distro's directives.
-  const installedPackages = readProjectPackages(cwd);
+  // Read current project state to compare against the distro's directives. A distro may
+  // have installed packages/files either project-locally or globally — provenance records
+  // the directives (intentions), not scope, so we detect placement at runtime by checking
+  // BOTH ./.pi/settings.json and ~/.pi/agent/settings.json (and both file trees).
+  const installedLocal = readProjectPackages(cwd);
+  const installedGlobal = readGlobalPackages();
 
-  // Which of the distro's packages are still installed?
-  const distroPackagesInstalled = packages.filter((p) => installedPackages.includes(p));
-  const distroPackagesMissing = packages.filter((p) => !installedPackages.includes(p));
+  // Classify each distro package by where it actually landed.
+  type Placement = "local" | "global" | "both" | "missing";
+  const placement = (src: string): Placement => {
+    const inLocal = installedLocal.includes(src);
+    const inGlobal = installedGlobal.includes(src);
+    if (inLocal && inGlobal) return "both";
+    if (inLocal) return "local";
+    if (inGlobal) return "global";
+    return "missing";
+  };
+  const removeHint = (pl: Placement): string =>
+    pl === "local" ? "remove with `pi remove -l <pkg>`"
+    : pl === "global" ? "remove with `pi remove <pkg>` (global — affects every project)"
+    : pl === "both" ? "remove from both: `pi remove -l <pkg>` AND `pi remove <pkg>`"
+    : "";
+  const distroPackages = packages.map((p) => ({ pkg: p, pl: placement(p) }));
+  const distroPackagesInstalled = distroPackages.filter((d) => d.pl !== "missing");
+  const distroPackagesMissing = distroPackages.filter((d) => d.pl === "missing");
 
-  // Check for the AGENTS.md delimited section.
-  const agentsMdPath = join(cwd, "AGENTS.md");
-  let agentsMdSection = "not present";
-  if (existsSync(agentsMdPath)) {
-    const content = readFileSync(agentsMdPath, "utf-8");
-    if (content.includes(`<!-- pi-distro: ${prov.appliedHarness} -->`)) {
-      agentsMdSection = "present";
-    } else {
-      agentsMdSection = "not found (already removed or never added)";
-    }
-  }
+  // Check for the AGENTS.md delimited section at BOTH the project root and the global
+  // ~/.pi/agent/AGENTS.md (a distro may have deployed it at either scope).
+  const checkAgentsSection = (path: string): boolean => {
+    if (!existsSync(path)) return false;
+    return readFileSync(path, "utf-8").includes(`<!-- pi-distro: ${prov.appliedHarness} -->`);
+  };
+  const localAgentsMdPath = join(cwd, "AGENTS.md");
+  const globalAgentsMdPath = join(homedir(), ".pi", "agent", "AGENTS.md");
+  const localAgentsPresent = checkAgentsSection(localAgentsMdPath);
+  const globalAgentsPresent = checkAgentsSection(globalAgentsMdPath);
+  let agentsMdSection: string;
+  if (localAgentsPresent && globalAgentsPresent) agentsMdSection = "present in BOTH ./AGENTS.md and ~/.pi/agent/AGENTS.md";
+  else if (localAgentsPresent) agentsMdSection = "present in ./AGENTS.md (project-local)";
+  else if (globalAgentsPresent) agentsMdSection = "present in ~/.pi/agent/AGENTS.md (global — affects every session)";
+  else agentsMdSection = "not found (already removed or never added)";
 
   const activeTools = snapshot.selectedTools?.length
     ? snapshot.selectedTools.map((t) => `- \`${t}\``).join("\n")
     : "_(none / default set)_";
 
   const packageList = distroPackagesInstalled.length > 0
-    ? distroPackagesInstalled.map((p) => `- \`${p}\` — installed (can be removed with \`pi remove -l\`)`).join("\n")
+    ? distroPackagesInstalled.map((d) => `- \`${d.pkg}\` — [${d.pl}] ${removeHint(d.pl)}`).join("\n")
     : "_(none of the distro's packages are currently installed)_";
   const missingNote = distroPackagesMissing.length > 0
-    ? `\n\n**Packages from this distro not currently installed (already removed):**\n${distroPackagesMissing.map((p) => `- \`${p}\``).join("\n")}`
+    ? `\n\n**Packages from this distro not currently installed (already removed):**\n${distroPackagesMissing.map((d) => `- \`${d.pkg}\``).join("\n")}`
     : "";
 
   pi.sendUserMessage(`## Undeploying distro: ${prov.appliedHarness} (v${prov.appliedVersion})
@@ -76,7 +100,7 @@ the *current* project state and let the user decide what to remove.
 ${directives}
 
 ### Current project state
-**Distro packages still installed in this project (${distroPackagesInstalled.length} of ${packages.length}):**
+**Distro packages still installed (${distroPackagesInstalled.length} of ${packages.length}; [local] = ./.pi, [global] = ~/.pi/agent, [both] = both):**
 ${packageList}${missingNote}
 
 **AGENTS.md delimited section:** ${agentsMdSection}
@@ -84,8 +108,11 @@ ${packageList}${missingNote}
 **Active tools in this session:**
 ${activeTools}
 
-**Installed packages in .pi/settings.json:**
-${installedPackages.length > 0 ? installedPackages.map((p) => `- \`${p}\``).join("\n") : "_(none)_"}
+**Installed packages in .pi/settings.json (project-local):**
+${installedLocal.length > 0 ? installedLocal.map((p) => `- \`${p}\``).join("\n") : "_(none)_"}
+
+**Installed packages in ~/.pi/agent/settings.json (global):**
+${installedGlobal.length > 0 ? installedGlobal.map((p) => `- \`${p}\``).join("\n") : "_(none)_"}
 
 ### Removal procedure (follow exactly, collaborating with the user)
 
@@ -95,25 +122,35 @@ key. The user may have customized files after deploy, or may want to keep some c
 
 **1. Walk the user through each removal category, one at a time:**
 
-   **(a) Packages** — for each distro package still installed, offer to remove it with
-   \`pi remove -l <pkg>\`. **Ask per package** — the user may want to keep some. Warn if
-   removing a package that other components depend on (e.g. if an extension relies on a
-   package's theme). If the user skips a package, note it.
+   **(a) Packages** — for each distro package still installed, remove it from wherever it
+   was placed. Use the [placement] shown above: \`pi remove -l <pkg>\` for [local],
+   \`pi remove <pkg>\` for [global] (note: global removal affects EVERY project on this
+   machine — say so and get explicit confirmation), and BOTH commands for [both]. **Ask per
+   package** — the user may want to keep some. Warn if removing a package that other
+   components depend on (e.g. if an extension relies on a package's theme). If the user
+   skips a package, note it.
 
    **(b) Bundled files** — the directives list bundled files (e.g. \`AGENTS.md\`,
-   \`settings.json\`, \`extensions/claude-statusline.ts\`). For each, check if the file exists
-   in the project. If it does, **show the user the file (or a summary) before removing** —
-   they may have customized it and want to keep it. Offer: remove / keep. Never silently
-   delete. For \`settings.json\`, offer to remove specific keys the distro merged (e.g.
-   \`theme\`, \`defaultThinkingLevel\`) rather than deleting the whole file — and warn about
-   user customizations.
+   \`settings.json\`, \`extensions/claude-statusline.ts\`). A file may have been placed at
+   EITHER scope: check for it at both \`./<path>\` (project-local) AND
+   \`~/.pi/agent/<equivalent>\` (global). For each that exists, **show the user the file (or
+   a summary) before removing** — they may have customized it and want to keep it. Offer:
+   remove / keep, per location. Never silently delete. For \`settings.json\` (local at
+   \`./.pi/settings.json\`, global at \`~/.pi/agent/settings.json\`), offer to remove specific
+   keys the distro merged (e.g. \`theme\`, \`defaultThinkingLevel\`) rather than deleting the
+   whole file — and warn about user customizations. Warn that global settings removal
+   affects every project.
 
-   **(c) AGENTS.md delimited section** — if the \`<!-- pi-distro: ${prov.appliedHarness} -->\` ...
-   \`<!-- /pi-distro: ${prov.appliedHarness} -->\` block exists, offer to remove it. If the
-   user has a standalone (non-delimited) AGENTS.md that wasn't added by the distro, leave it.
+   **(c) AGENTS.md delimited section** — the \`<!-- pi-distro: ${prov.appliedHarness} -->\` ...
+   \`<!-- /pi-distro: ${prov.appliedHarness} -->\` block may exist at \`./AGENTS.md\`
+   (project-local) and/or \`~/.pi/agent/AGENTS.md\` (global). Offer to remove it from each
+   location it was found (see the AGENTS.md status above). Warn that removing the global one
+   affects every session. If the user has a standalone (non-delimited) AGENTS.md that wasn't
+   added by the distro, leave it.
 
-   **(d) Extensions / skills / prompts / themes** — if the directives describe these and they
-   exist in the project, offer to remove each (with the same show-before-delete rule).
+   **(d) Extensions / skills / prompts / themes** — if the directives describe these, check
+   for them in BOTH \`./.pi/<type>/\` (local) and \`~/.pi/agent/<type>/\` (global). Offer to
+   remove each (with the same show-before-delete rule), per location.
 
 **2. Remove provenance last.** Only after the user has confirmed the component removals,
    remove \`./.pi/harness.md\` (the provenance file). Confirm with the user before deleting it.

@@ -23,11 +23,13 @@ existing setup — nothing is silently overwritten.
 ## Get a fully-configured coder in 60 seconds
 
 ```bash
-# 1. Install the package
+# 1. Install the package (in your shell)
 pi install npm:@msdavid/pi-distro
 
-# 2. Deploy a distro (cc-knockoff = a Claude Code-style multi-agent coder)
-/pi-distro deploy cc-knockoff
+# 2. Start pi, then deploy a distro from inside the session
+#    (cc-knockoff = a Claude Code-style multi-agent coder)
+pi
+> /pi-distro deploy cc-knockoff
 
 # 3. Restart pi — done.
 ```
@@ -46,7 +48,10 @@ explore-before-acting methodology — all configured and ready to go.
   substitutes, or chooses. Every state-changing decision (file merge, package install, tool
   conflict, upgrade) is surfaced with options, and the agent waits for your explicit choice
 - 📦 **Project-local by default** — each project gets its own isolated configuration, so
-  different projects can use different harnesses (coding, research, automation, trading…)
+  different projects can use different harnesses (coding, research, automation, trading…).
+  Need a component everywhere? **Install globally** — at deploy time, choose
+  accept-defaults / all-global / customize per component (with safety guards for
+  machine-wide changes)
 - 🔄 **Round-trip** — snapshot your live config back into a reusable distro with `/pi-distro save`
 - 🐙 **GitHub distros** — deploy distros straight from any GitHub repo, so your personal
   config follows you to any machine (`/pi-distro deploy owner/repo`)
@@ -109,6 +114,57 @@ Other advantages:
 
 You can still use global packages and settings alongside project-level ones — pi merges
 them. But the distro itself lives at the project level.
+
+## Installing locally vs globally
+
+Although pi-distro defaults to **project-local** installation (so each project gets its own
+isolated harness), you can choose to install any component **globally** — shared across
+every project and session on your machine. This is an opt-in choice made at deploy time; the
+project-local default is never changed silently.
+
+When you run `/pi-distro deploy` (or `/pi-distro pick`), the agent builds a **deployment
+plan** listing every component with its default scope, then offers three presets:
+
+- **Accept defaults** — keep each component at its default scope (recommended). Most things
+  go project-local; themes default to global (they're user-wide by nature).
+- **All-global (where safe)** — install every safe component globally. Dangerous types
+  (settings, `SYSTEM.md`, `AGENTS.md`) stay project-local with a surfaced warning, because
+  their blast radius is machine-wide.
+- **Customize** — walk components one at a time and pick `local` / `global` / `skip` for each.
+
+### What can go global
+
+| Component | Default | Global? |
+|---|---|---|
+| Packages | local | ✅ |
+| Extensions | local | ✅ |
+| Skills | local | ✅ |
+| Prompts | local | ✅ |
+| Themes | **global** | ✅ |
+| `settings.json` merge | local | ⚠️ guarded (explicit confirm) |
+| `SYSTEM.md` / `APPEND_SYSTEM.md` | local | ⚠️ double-confirm |
+| `AGENTS.md` | local | ⚠️ guarded (explicit confirm) |
+
+Global placement writes to `~/.pi/agent/` (packages via `pi install` →
+`~/.pi/agent/settings.json`; extensions/themes/skills/prompts into `~/.pi/agent/<type>/`).
+Project-local writes to `./.pi/` (packages via `pi install -l`). pi merges the two;
+project-local shadows global on conflict.
+
+### Tracking global installs
+
+Provenance (`./.pi/harness.md`) records the distro's directives — it does **not** record
+scope. So `/pi-distro status` and `/pi-distro undeploy` detect where each component
+actually landed by checking **both** `./.pi/...` and `~/.pi/agent/...` (plus `pi list` for
+packages). When you undeploy, the agent offers the right removal command per location
+(`pi remove -l` for local, `pi remove` for global). `/pi-distro save` captures
+globally-installed config too (marked `(global)` in the snapshot), so saved distros stay
+reproducible.
+
+### Authoring a distro with a global hint
+
+Distro authors can suggest a global default for a package with the `(global)` marker — see
+[docs/authoring.md](docs/authoring.md). The hint is a suggested default; the user's
+preset still governs at deploy time.
 
 ## Workflows
 
@@ -255,6 +311,10 @@ The effective catalogue is the union of:
 Selectors and `/pi-distro list` show each distro's source clearly: **Official** (the
 `msdavid/pi-distro` repo), **Local** (your `~/.pi/harnesses/`), or **GitHub (<owner>/<repo>)**
 for distros from other repos.
+
+If GitHub is unreachable (offline, or the unauthenticated API rate limit is hit), the
+catalogue degrades to local-only and `/pi-distro list`, `/pi-distro status`, and the
+selectors say so explicitly — official distros are temporarily hidden, not gone.
 
 On a name collision, the **user distro takes precedence** — save a distro with the same
 name as an official distro to override it. Official distros come from a trusted repo (the

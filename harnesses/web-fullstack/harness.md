@@ -1,8 +1,8 @@
 ---
 name: web-fullstack
 title: Full-Stack Web
-description: "React/Node project with web-research + review skills, review-oriented context, and a sensible tools allowlist."
-version: 0.1.0
+description: "React/Node project with web-research + review skills, review-oriented context, and a recommended restricted-tools launch mode."
+version: 0.2.0
 tags: [web, react, node]
 ---
 
@@ -31,8 +31,21 @@ in settings.
 ## Context
 This harness sets up a full-stack web project with React/Node conventions. The bundled
 `AGENTS.md` contains frontend and backend conventions, testing guidance, and a code review
-process. The `settings.json` restricts the tools allowlist to the essential set. A review
-prompt template is included under `.pi/prompts/` for on-demand code reviews.
+process. The `settings.json` sets a sensible default thinking level. A review prompt
+template is included under `.pi/prompts/` for on-demand code reviews.
+
+## Tools allowlist (launch flag, not a setting)
+pi restricts tools via the `--tools` launch flag — there is no settings.json key for it.
+After deploying, tell the user that for review-focused sessions they can launch pi with a
+restricted tool set:
+
+```bash
+pi --tools read,bash,edit,write,grep,find,ls
+```
+
+Do NOT write a `tools` key into `.pi/settings.json` — pi ignores unknown settings keys,
+so it would silently do nothing. If the user wants the restriction to be their default,
+suggest a shell alias (e.g. `alias piweb='pi --tools read,bash,edit,write,grep,find,ls'`).
 
 ## Skills / prompts
 - The `pi-browse` package (installed above) provides web research capabilities.

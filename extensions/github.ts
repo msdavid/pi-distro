@@ -11,9 +11,9 @@
  */
 
 import { execSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 import { parseFrontmatter } from "./frontmatter.ts";
 import type { HarnessEntry } from "./catalogue.ts";
 
@@ -152,6 +152,21 @@ export function fetchGithubDistro(
 let officialListCache: { entries: HarnessEntry[]; fetchedAt: number } | null = null;
 const OFFICIAL_LIST_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+/** Whether the last official-catalogue fetch failed (network down, GitHub API
+ *  rate limit, …). Lets callers tell "GitHub unreachable" apart from "distro
+ *  genuinely doesn't exist" in their messaging. */
+let officialUnavailable = false;
+
+/** True if the most recent official-catalogue fetch failed. */
+export function isOfficialCatalogueUnavailable(): boolean {
+  return officialUnavailable;
+}
+
+/** On-disk cache of official distro names, for synchronous autocomplete. */
+function officialNamesCachePath(): string {
+  return join(homedir(), ".pi", "harnesses", ".official-cache.json");
+}
+
 /**
  * List official distros from OFFICIAL_REPO's `harnesses/` directory via the GitHub
  * Contents API (one call) + a raw frontmatter fetch per distro.
@@ -179,10 +194,11 @@ async function listOfficialDistrosUncached(): Promise<HarnessEntry[]> {
     const resp = await fetch(contentsUrl, {
       headers: { "Accept": "application/vnd.github+json", "User-Agent": "pi-distro" },
     });
-    if (!resp.ok) return [];
+    if (!resp.ok) { officialUnavailable = true; return []; }
     const listing = (await resp.json()) as Array<{ name: string; type: string }>;
     dirs = listing.filter((e) => e.type === "dir").map((e) => e.name);
   } catch {
+    officialUnavailable = true;
     return [];
   }
 
@@ -209,7 +225,28 @@ async function listOfficialDistrosUncached(): Promise<HarnessEntry[]> {
     }
   }));
   entries.sort((a, b) => a.name.localeCompare(b.name));
+  // The raw fetches all failing (with a non-empty dir listing) is also "unavailable".
+  officialUnavailable = dirs.length > 0 && entries.length === 0;
+  if (!officialUnavailable) {
+    try {
+      mkdirSync(join(homedir(), ".pi", "harnesses"), { recursive: true });
+      writeFileSync(officialNamesCachePath(), JSON.stringify(entries.map((e) => e.name)));
+    } catch { /* cache is best-effort */ }
+  }
   return entries;
+}
+
+/**
+ * For a directory inside one of our temp GitHub clones, return the clone root
+ * (the `pi-distro-gh-*` mkdtemp dir), or undefined if the dir is not a temp
+ * clone. Used to tell the deploying agent which directory to remove once the
+ * bundled files have been copied.
+ */
+export function tempCloneRoot(dir: string): string | undefined {
+  const prefix = join(tmpdir(), "pi-distro-gh-");
+  if (!dir.startsWith(prefix)) return undefined;
+  const first = dir.slice(tmpdir().length + 1).split(/[\\/]/)[0];
+  return join(tmpdir(), first);
 }
 
 /** Invalidate the official-list cache (used by tests / explicit refresh). */

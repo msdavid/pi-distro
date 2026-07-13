@@ -2,7 +2,7 @@
 name: minimal
 title: Minimal
 description: Clean starting point: a basic AGENTS.md and .pi/settings.json.
-version: 0.1.0
+version: 0.1.1
 ---
 
 # Minimal

@@ -125,24 +125,44 @@ manifest the agent uses during `deploy`.
 ### `## pi packages to install`
 
 List pi packages the distro depends on. The agent installs these with `pi install -l`
-(**project-local** — writes to `./.pi/settings.json`, not global) **only after confirming
-with the user** AND after a **redundancy/conflict evaluation**: the agent compares each
-package's stated purpose against the project's already-active tools (and `pi list`),
-checking for both exact tool-name collisions and semantic redundancy (different names,
-similar function). If overlap is detected, it offers the user **skip / replace / keep both /
-cancel** instead of installing blindly. (Exact name collisions are non-fatal in pi —
-project-local tools shadow global ones — but redundancy leaves a confusing duplicate tool
-set, so the agent surfaces it for the user to decide.)
+(**project-local** — writes to `./.pi/settings.json`) **or** `pi install` (**global** — writes
+to `~/.pi/agent/settings.json`, shared across every project) per the user's deploy-time
+scope choice, **only after confirming with the user** AND after a
+**redundancy/conflict evaluation**: the agent compares each package's stated purpose against
+the project's already-active tools and installed packages (both local and global, via
+`pi list`), checking for both exact tool-name collisions and semantic redundancy (different
+names, similar function). If overlap is detected, it offers the user **skip / replace /
+keep both / cancel** instead of installing blindly. (Exact name collisions are non-fatal in
+pi — project-local tools shadow global ones — but redundancy leaves a confusing duplicate
+tool set, so the agent surfaces it for the user to decide.)
 
-**Do not list these packages in the bundled `settings.json` `packages` array.** `pi install -l`
-is the single mechanism that registers a package: it installs the package AND appends the
-source to `./.pi/settings.json` on success, and leaves settings untouched on failure. This
-way a failed install never leaves a dangling, unresolvable entry in settings.
+**Do not list these packages in the bundled `settings.json` `packages` array.**
+`pi install -l` / `pi install` are the single mechanisms that register a package: each
+installs the package AND appends the source to the corresponding settings file on success,
+and leaves settings untouched on failure. This way a failed install never leaves a dangling,
+unresolvable entry in settings.
+
+#### Scope hint: `(global)`
+
+By default, a package is suggested for **project-local** install. To suggest **global** as
+the author-intended default, suffix the entry with `(global)`:
 
 ```markdown
 ## pi packages to install
 - `npm:pi-browse` — for web search and content extraction
+- `npm:my-shared-tool` (global) — a tool the user wants in every project
 ```
+
+The hint is a **suggested default** for the deployment plan — it does not force global
+install. At deploy time the user picks a preset (accept-defaults / all-global-where-safe /
+customize) which governs the final scope. Use `(global)` for packages that are genuinely
+user-wide (a favorite status-line, a shared utility); leave it off for project-specific
+dependencies.
+
+> **Marker placement:** the `(global)` / `(local)` marker must appear **between the
+> package reference and the description dash** (as in the example above). A `(global)`
+> that appears inside the description prose after the `—` dash is intentionally ignored,
+> so descriptions can mention the word without changing the scope.
 
 ### `## Hooks`
 
@@ -160,6 +180,56 @@ Describe what context to write or configure. This may reference the bundled
 Reference bundled skills (under `files/.pi/skills/`) and prompts (under
 `files/.pi/prompts/`) that should be deployed, or describe skills/prompts the agent
 should create.
+
+## Install scope: local vs global
+
+Every component a distro installs can be placed either **project-local** (the default,
+under `./.pi/` — scoped to this project) or **global** (under `~/.pi/agent/` — shared
+across every project and session on the machine). pi merges the two; project-local
+shadows global on conflict. pi-distro's default philosophy is **project-local**, because
+different projects need different harnesses — global is an opt-in choice the user makes at
+deploy time.
+
+### Per-type default scopes
+
+| Component type | Default scope | Global allowed? |
+|---|---|---|
+| Packages | local | yes |
+| Extensions | local | yes |
+| Skills | local | yes |
+| Prompts | local | yes |
+| Themes | **global** | yes |
+| settings.json merge | local | guarded (explicit confirm) |
+| SYSTEM.md / APPEND_SYSTEM.md | local | double-confirm |
+| AGENTS.md | local | guarded (explicit confirm) |
+
+At deploy (and `/pi-distro pick`), the agent builds a **deployment plan** from the
+directives — grouping every component with its default scope — and offers the user three
+presets:
+
+- **(a) Accept defaults** — keep each component at its default scope (recommended).
+- **(b) All-global (where safe)** — flip every global-allowed component to global;
+  dangerous types (settings, SYSTEM.md, AGENTS.md) stay local with a surfaced warning.
+- **(c) Customize** — walk items one at a time, offering `local` / `global` / `skip`.
+
+When a dangerous type's final scope is global, the agent surfaces the blast radius
+("affects every project/session on this machine") and requires explicit confirmation
+(double-confirm for SYSTEM.md/APPEND_SYSTEM.md).
+
+### `## Global deployment notes`
+
+If your distro is intended to place some bundled files **globally** (e.g. an extension that
+should live at `~/.pi/agent/extensions/` rather than `./.pi/extensions/`), add a `## Global
+deployment notes` section listing which file targets should go global:
+
+```markdown
+## Global deployment notes
+- `.pi/extensions/my-shared-ext.ts` → deploy globally to `~/.pi/agent/extensions/my-shared-ext.ts`
+- `.pi/themes/shared-theme.json` → deploy globally to `~/.pi/agent/themes/shared-theme.json`
+```
+
+The agent reads this note and places those files at the global path per the user's scope
+choice. For packages, prefer the `(global)` marker in `## pi packages to install` instead.
 
 ## Merge-don't-clobber expectations
 
@@ -233,6 +303,10 @@ The `version` field tracks which revision of a distro is applied. Two places use
 Never keep the same version when updating a distro — the version should always reflect
 that something changed. When authoring a distro by hand, pick a starting version (e.g.
 `0.1.0`) and bump it on each meaningful change.
+
+Write versions as plain `MAJOR.MINOR.PATCH` — no `v` prefix. Prerelease suffixes
+(`1.0.0-beta`) are tolerated and sort before their release, but plain releases are
+recommended for distros.
 
 The saved distro is immediately available in `/pi-distro list` and can be deployed
 into other projects with `/pi-distro deploy`.

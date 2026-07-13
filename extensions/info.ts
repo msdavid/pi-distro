@@ -18,14 +18,25 @@ import {
   sourceLabel,
 } from "./catalogue.ts";
 import { resolveCatalogueEntry } from "./resolve.ts";
-import { isOfficialSource, officialNameFromSource, listOfficialDistros } from "./github.ts";
-import { display, compareVersions } from "./util.ts";
+import {
+  isOfficialSource,
+  officialNameFromSource,
+  listOfficialDistros,
+  isOfficialCatalogueUnavailable,
+} from "./github.ts";
+import { display, compareVersions, readProjectPackages, readGlobalPackages } from "./util.ts";
 
 // --- list ---
 
 export async function handleList(pi: ExtensionAPI): Promise<void> {
   const catalogue = await readCatalogue();
-  if (catalogue.length === 0) { display(pi, "No distros found in the catalogue."); return; }
+  const offlineNote = isOfficialCatalogueUnavailable()
+    ? "\n\n⚠️ Official distros could not be fetched from GitHub (offline or rate-limited?) — showing local distros only. Try again later."
+    : "";
+  if (catalogue.length === 0) {
+    display(pi, `No distros found in the catalogue.${offlineNote}`);
+    return;
+  }
   const rows = catalogue.map((h) => {
     const desc = h.description.length > 50 ? h.description.slice(0, 47) + "..." : h.description;
     return `| ${h.name} | ${h.title} | ${h.version} | ${sourceLabel(h.source)} | ${desc} |`;
@@ -39,7 +50,7 @@ export async function handleList(pi: ExtensionAPI): Promise<void> {
 |------|-------|---------|--------|-------------|
 ${rows.join("\n")}
 
-_Official: ${officialCount} (GitHub) · Local: ${localCount}${otherGhCount > 0 ? ` · Other GitHub: ${otherGhCount}` : ""} · Total: ${catalogue.length}_`);
+_Official: ${officialCount} (GitHub) · Local: ${localCount}${otherGhCount > 0 ? ` · Other GitHub: ${otherGhCount}` : ""} · Total: ${catalogue.length}_${offlineNote}`);
 }
 
 // --- status ---
@@ -67,6 +78,8 @@ export async function handleStatus(pi: ExtensionAPI, ctx: ExtensionCommandContex
           } else if (cmp < 0) {
             updateSection = `### Version note\nApplied v${prov.appliedVersion} is newer than the official catalogue's v${current.version} (downgrade).`;
           } // same version → no section
+        } else if (isOfficialCatalogueUnavailable()) {
+          updateSection = `### Update check\nCould not check for updates: the official catalogue is unreachable (offline or GitHub rate limit?). Try again later.`;
         } else {
           updateSection = `### Update check\nOfficial distro '${prov.appliedHarness}' is no longer in the catalogue (removed or renamed).`;
         }
@@ -97,16 +110,10 @@ export async function handleStatus(pi: ExtensionAPI, ctx: ExtensionCommandContex
   const skillsList = snapshot.skills?.map((s) => `- ${s.name}`).join("\n") ?? "_(none)_";
   const contextList = snapshot.contextFiles?.map((c) => `- ${c.path}`).join("\n") ?? "_(none)_";
 
-  let packages = "_(none)_";
-  const settingsPath = join(cwd, ".pi", "settings.json");
-  if (existsSync(settingsPath)) {
-    try {
-      const settings = JSON.parse(readFileSync(settingsPath, "utf-8"));
-      if (Array.isArray(settings.packages) && settings.packages.length > 0) {
-        packages = settings.packages.map((p: string) => `- \`${p}\``).join("\n");
-      }
-    } catch { /* ignore */ }
-  }
+  const lpkgs = readProjectPackages(cwd);
+  const localPackages = lpkgs.length > 0 ? lpkgs.map((p) => `- \`${p}\``).join("\n") : "_(none)_";
+  const gpkgs = readGlobalPackages();
+  const globalPackages = gpkgs.length > 0 ? gpkgs.map((p) => `- \`${p}\``).join("\n") : "_(none)_";
 
   display(pi, `## Project distro status
 
@@ -119,8 +126,10 @@ ${updateSection}
 ${skillsList}
 - **Context files:**
 ${contextList}
-- **Installed packages:**
-${packages}`);
+- **Installed packages (project-local, ./.pi/settings.json):**
+${localPackages}
+- **Installed packages (global, ~/.pi/agent/settings.json):**
+${globalPackages}`);
 }
 
 // --- remove ---

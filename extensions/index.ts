@@ -35,11 +35,14 @@ const SUBCOMMANDS = [
 
 export default function (pi: ExtensionAPI): void {
   pi.registerCommand("pi-distro", {
-    description: "Manage pi distros (deploy, save, list, show, status, remove)",
+    description: "Manage pi distros (deploy, undeploy, pick, update, save, list, show, status, remove)",
     handler: async (args: string, ctx: ExtensionCommandContext) => {
       const parts = args.trim().split(/\s+/).filter(Boolean);
       const sub = parts[0] ?? "";
       const nameArg = parts[1];
+      if (parts.length > 2) {
+        ctx.ui.notify(`Ignoring extra arguments: ${parts.slice(2).join(" ")}`, "warning");
+      }
       switch (sub) {
         case "": await handleHelp(pi); break;
         case "deploy": await handleDeploy(pi, ctx, nameArg); break;

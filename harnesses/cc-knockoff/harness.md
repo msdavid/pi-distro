@@ -2,7 +2,7 @@
 name: cc-knockoff
 title: cc-knockoff
 description: "A Claude Code–style coding agent distribution built around autonomous sub-agent spawning and coordination, with web research, browser automation, live shell, model routing, and task management in support. Includes a Claude-style status line and an explore-before-acting approach."
-version: 1.2.0
+version: 1.2.1
 tags: [full-config, claude-code-style]
 ---
 

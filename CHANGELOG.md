@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.4.0 - 2026-07-13
+
+- **Install scope: local vs global.** Every component of a distro can now be installed
+  **project-locally** (default, `./.pi/`) or **globally** (`~/.pi/agent/`, opt-in). At
+  deploy/pick time the agent builds a deployment plan and offers three presets
+  (accept-defaults / all-global-where-safe / customize), with safety guards for dangerous
+  types (settings.json, SYSTEM.md/APPEND_SYSTEM.md, AGENTS.md). Authors can suggest a
+  global default per package with a `(global)` marker. `status`/`undeploy` detect where
+  each component actually landed by checking both scopes; `save` captures global config
+  too (marked `(global)`).
+- **Offline/rate-limit awareness**: when the official catalogue can't be fetched from
+  GitHub, `list`, `status`, and the selectors now say so explicitly instead of implying
+  distros don't exist or were removed.
+- **Official distro names in tab-completion**: the last successful catalogue listing is
+  cached to `~/.pi/harnesses/.official-cache.json`, so `deploy`/`show`/`pick` completion
+  offers official names, not just local ones.
+- **Robustness fixes**: provenance header parsing is now field-order-independent;
+  `compareVersions` handles `v` prefixes and prerelease suffixes (`1.0.0-beta < 1.0.0`);
+  the `(global)` scope marker is only honored between the package ref and the description
+  dash (prose mentions no longer count); an h1 heading now also terminates the
+  `## pi packages` section; `status` renders object-form package entries correctly.
+- **Save snapshot hygiene**: skips `.pi/loops/` runtime state, detects binary files
+  instead of inlining garbage, and caps the total inlined snapshot at 256 KB (per-file
+  cap unchanged; omitted files are listed by path).
+- **GitHub temp clones cleaned up**: deploy/pick kickoffs now instruct the agent to
+  remove the temporary clone after copying bundled files.
+- **CLI polish**: extra arguments are warned about instead of silently ignored; the
+  command description lists all subcommands.
+- **Distro fixes**: `web-fullstack` 0.2.0 — removed the non-functional `tools` key from
+  bundled settings (pi restricts tools via the `--tools` launch flag, now documented in
+  the directives); `minimal` 0.1.1 — removed the empty `packages` array from bundled
+  settings (merge hazard); `trip-planner` 0.3.0 — statusline now provided by
+  `npm:pi-cc-status` (bundled extension removed), supi post-install aligned with
+  cc-knockoff's config-file flow, description shortened to the ≤300-char limit;
+  `cc-knockoff` 1.2.1 — README global-settings path corrected to
+  `~/.pi/agent/settings.json`.
+- **New test suite for shipped distros** (`tests/harnesses.test.ts`): validates
+  frontmatter rules (name/dir match, plain semver, description length), README presence,
+  and that the bundled-files manifest matches `files/` on disk in both directions.
+
 ## 0.3.0 - 2026-07-10
 
 - **Dynamic official distros from GitHub**: official distros (`minimal`, `web-fullstack`,

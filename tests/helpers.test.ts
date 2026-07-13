@@ -2,8 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { parseFrontmatter, serializeFrontmatter, extractBody } from "../extensions/frontmatter.ts";
-import { parsePackageList, parseProvenance } from "../extensions/catalogue.ts";
+import { parsePackageList, parsePackageListWithScope, parseProvenance } from "../extensions/catalogue.ts";
 import { parseGithubRef, looksLikeGithubRef, isOfficialSource, officialSource, officialNameFromSource } from "../extensions/github.ts";
+import { readProjectPackages, readGlobalPackages, compareVersions } from "../extensions/util.ts";
 
 // --- frontmatter ---
 
@@ -74,6 +75,81 @@ test("parsePackageList: ignores non-npm list items", () => {
   assert.deepEqual(parsePackageList(body), []);
 });
 
+// --- package list with scope ---
+
+test("parsePackageListWithScope: defaults to local when no marker", () => {
+  const body = "## pi packages to install\n- `npm:pi-web-access` — web search\n- `npm:pi-goal` — goals";
+  assert.deepEqual(parsePackageListWithScope(body), [
+    { source: "npm:pi-web-access", scope: "local" },
+    { source: "npm:pi-goal", scope: "local" },
+  ]);
+});
+
+test("parsePackageListWithScope: (global) marker sets scope to global", () => {
+  const body = "## pi packages to install\n- `npm:pi-web-access` — web search\n- `npm:my-shared-tool` (global) — a user-wide tool";
+  assert.deepEqual(parsePackageListWithScope(body), [
+    { source: "npm:pi-web-access", scope: "local" },
+    { source: "npm:my-shared-tool", scope: "global" },
+  ]);
+});
+
+test("parsePackageListWithScope: (local) marker is accepted and stays local", () => {
+  const body = "## pi packages to install\n- `npm:foo` (local)";
+  assert.deepEqual(parsePackageListWithScope(body), [
+    { source: "npm:foo", scope: "local" },
+  ]);
+});
+
+test("parsePackageListWithScope: stops at the next section heading", () => {
+  const body = "## pi packages to install\n- `npm:pi-goal`\n## Hooks\n- `npm:should-not-match`";
+  assert.deepEqual(parsePackageListWithScope(body), [
+    { source: "npm:pi-goal", scope: "local" },
+  ]);
+});
+
+test("parsePackageListWithScope: an h1 heading also ends the section", () => {
+  const body = "## pi packages to install\n- `npm:pi-goal`\n# Top-level heading\n- `npm:should-not-match`";
+  assert.deepEqual(parsePackageListWithScope(body).map((p) => p.source), ["npm:pi-goal"]);
+});
+
+test("parsePackageListWithScope: an h3 subsection does NOT end the section", () => {
+  const body = "## pi packages to install\n### core\n- `npm:a`\n### extras\n- `npm:b`";
+  assert.deepEqual(parsePackageListWithScope(body).map((p) => p.source), ["npm:a", "npm:b"]);
+});
+
+test("parsePackageListWithScope: (global) inside description prose is ignored", () => {
+  const body = "## pi packages to install\n- `npm:foo` — a tool that works (global) everywhere";
+  assert.deepEqual(parsePackageListWithScope(body), [
+    { source: "npm:foo", scope: "local" },
+  ]);
+});
+
+test("parsePackageListWithScope: marker before the description dash sets scope", () => {
+  const body = "## pi packages to install\n- `npm:foo` (global) — a user-wide tool";
+  assert.deepEqual(parsePackageListWithScope(body), [
+    { source: "npm:foo", scope: "global" },
+  ]);
+});
+
+test("parsePackageList: still returns source strings (backward compat)", () => {
+  const body = "## pi packages to install\n- `npm:foo` (global)\n- `npm:bar`";
+  // parsePackageList returns sources only — scope markers are stripped
+  assert.deepEqual(parsePackageList(body), ["npm:foo", "npm:bar"]);
+});
+
+// --- package readers (local + global) ---
+
+test("readProjectPackages: returns [] when .pi/settings.json absent", () => {
+  assert.deepEqual(readProjectPackages("/nonexistent/path/that/does/not/exist"), []);
+});
+
+test("readGlobalPackages: returns a value (string array) without throwing", () => {
+  // May be [] on this machine if no global packages, but must not throw and must be an array.
+  const result = readGlobalPackages();
+  assert.ok(Array.isArray(result), "readGlobalPackages must return an array");
+  result.forEach((p) => assert.equal(typeof p, "string"));
+});
+
 // --- provenance ---
 
 test("parseProvenance: parses a provenance header", () => {
@@ -87,6 +163,42 @@ test("parseProvenance: parses a provenance header", () => {
 
 test("parseProvenance: returns null when header absent", () => {
   assert.equal(parseProvenance("# just a harness\n\nbody"), null);
+});
+
+test("parseProvenance: field order does not matter", () => {
+  const content = "<!-- pi-distro provenance\n     appliedVersion: 1.2.0\n     lastUpdated: 2026-07-09T00:00:00Z\n     appliedHarness: web-fullstack\n     sourceCatalogue: user\n-->";
+  const p = parseProvenance(content);
+  assert.equal(p?.appliedHarness, "web-fullstack");
+  assert.equal(p?.appliedVersion, "1.2.0");
+  assert.equal(p?.sourceCatalogue, "user");
+  assert.equal(p?.lastUpdated, "2026-07-09T00:00:00Z");
+});
+
+test("parseProvenance: returns null when a required field is missing", () => {
+  const content = "<!-- pi-distro provenance\n     appliedHarness: x\n     appliedVersion: 1.0.0\n-->";
+  assert.equal(parseProvenance(content), null);
+});
+
+// --- version comparison ---
+
+test("compareVersions: basic ordering", () => {
+  assert.ok(compareVersions("1.2.0", "1.1.9") > 0);
+  assert.ok(compareVersions("0.9.0", "1.0.0") < 0);
+  assert.equal(compareVersions("1.0.0", "1.0.0"), 0);
+  assert.ok(compareVersions("1.0.0.1", "1.0.0") > 0); // extra segment tolerated
+});
+
+test("compareVersions: tolerates a leading v prefix", () => {
+  assert.equal(compareVersions("v1.2.0", "1.2.0"), 0);
+  assert.ok(compareVersions("v2.0.0", "1.9.9") > 0);
+});
+
+test("compareVersions: a prerelease sorts before its release", () => {
+  assert.ok(compareVersions("1.0.0-beta", "1.0.0") < 0);
+  assert.ok(compareVersions("1.0.0", "1.0.0-beta") > 0);
+  assert.equal(compareVersions("1.0.0-beta", "1.0.0-beta"), 0);
+  assert.ok(compareVersions("1.0.0-alpha", "1.0.0-beta") < 0);
+  assert.ok(compareVersions("1.0.1-alpha", "1.0.0") > 0); // higher core wins over prerelease
 });
 
 // --- github refs ---

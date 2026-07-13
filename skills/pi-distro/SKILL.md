@@ -28,7 +28,59 @@ Never silently skip, silently overwrite, silently substitute, or silently choose
 If a decision is ambiguous or the user is unsure, explain the tradeoffs and let
 them choose. **The agent proposes; the user disposes.** Every other rule in this
 skill (merge-don't-clobber, package-redundancy, version-aware deploy, the GitHub
-trust gate) is a specific instance of this principle.
+trust gate, the scope rule) is a specific instance of this principle.
+
+## Scope model: local vs global
+
+pi supports two install scopes, and pi-distro lets the user choose per component:
+
+- **Project-local** (default) — writes to `./.pi/` (packages via `pi install -l` →
+  `./.pi/settings.json`; extensions/skills/prompts/themes into `./.pi/<type>/`; settings into
+  `./.pi/settings.json`; AGENTS.md at `./AGENTS.md`). Scoped to this project only. This is the
+  default philosophy — different projects get different harnesses.
+- **Global** — writes to `~/.pi/agent/` (packages via `pi install` →
+  `~/.pi/agent/settings.json`; extensions/skills/prompts/themes into `~/.pi/agent/<type>/`;
+  settings into `~/.pi/agent/settings.json`; AGENTS.md at `~/.pi/agent/AGENTS.md`). Shared
+  across **every project and session on this machine**. Opt-in, never the default.
+
+pi merges global and project-local (project-local shadows global on conflict).
+
+### Per-type default scopes
+
+| Component type | Default scope | Global allowed? |
+|---|---|---|
+| Packages | local | ✅ |
+| Extensions | local | ✅ |
+| Skills | local | ✅ |
+| Prompts | local | ✅ |
+| Themes | **global** | ✅ |
+| settings.json merge | local | ⚠️ guarded (explicit confirm) |
+| SYSTEM.md / APPEND_SYSTEM.md | local | ⚠️ double-confirm |
+| AGENTS.md | local | ⚠️ guarded (explicit confirm) |
+
+### Deployment-plan procedure
+
+At the start of a `deploy` (and for the selected items in a `pick`), the kickoff includes a
+**scope rule** with this procedure. Follow it exactly:
+
+1. **Build a deployment plan** grouping every installable component by type, each with its
+   default scope (per the table above, or the author's `(global)` hint if the directives
+   mark one). Render it as markdown so the user sees the whole picture.
+2. **Offer three presets** via `ctx.ui.select`:
+   - **(a) Accept defaults** — keep every component at its default scope. Recommended.
+   - **(b) All-global (where safe)** — flip every global-allowed component to global;
+     dangerous types (settings, SYSTEM.md, AGENTS.md) stay local with a surfaced warning.
+   - **(c) Customize** — walk items one at a time, offering `local` / `global` / `skip`
+     each (`ctx.ui.select` is single-select). Cancel on an item = skip that item.
+3. **Scope-safety guard** — when a dangerous type's final scope is global, surface the blast
+   radius ("affects every project/session on this machine") and require explicit confirm.
+   For SYSTEM.md/APPEND_SYSTEM.md global, require a second confirm.
+4. **Install/place at the chosen scope** — `pi install -l` (local) or `pi install` (global)
+   for packages; write files to `./.pi/...` (local) or `~/.pi/agent/...` (global).
+5. **Provenance does not record scope.** At `undeploy`/`status` time, the extension detects
+   placement by checking both locations (`./.pi/...` and `~/.pi/agent/...`, plus `pi list`).
+   So note in your final report which components went global, so the user knows where to find
+   and remove them.
 
 ## `/pi-distro deploy` — Distro Deployment
 
@@ -47,7 +99,8 @@ cloned the repo, displayed a security warning + preview, and obtained the user's
 explicit confirmation before sending the kickoff — so you can proceed normally.
 The provenance `sourceCatalogue` will be `github:owner/repo[/subpath]`.
 Bundled files for GitHub distros are located in a temp directory (`/tmp/`) — copy
-them from there as usual.
+them from there as usual, then **remove the temporary clone** (the kickoff names the
+exact `rm -rf` target) so repeated GitHub deploys don't accumulate clones in `/tmp`.
 
 ### Deployment steps
 
@@ -79,17 +132,20 @@ them from there as usual.
 
      If the section already exists (re-deploy), replace only that delimited section.
 
-3. **Install pi packages — with redundancy/conflict detection.** If the directives list pi packages to
-   install, run `pi install -l <package>` for each one — the `-l` flag installs
-   **project-locally** (writes to `./.pi/settings.json`, not global) — but **only after
+3. **Install pi packages — scope + redundancy/conflict detection.** If the directives
+   list pi packages to install, first run the **scope** flow (deployment-plan + preset from
+   the Scope model above) to decide local vs global per package, then run the
+   **redundancy/conflict** check, then install at the chosen scope — `pi install -l <package>`
+   for **project-local** or `pi install <package>` for **global** — but **only after
    confirming with the user** AND after evaluating tool redundancy/conflicts:
 
-   **Do NOT pre-add packages to `./.pi/settings.json` by hand.** `pi install -l` is the single
-   mechanism that registers a package: it installs the package AND appends the source to
-   `./.pi/settings.json` on success. If an install fails, nothing is added to settings — so
-   settings never contains a package that isn't actually installed. (This is why the bundled
-   `settings.json` does not list packages — they are registered by `pi install -l`, not by
-   merging a `packages` array.)
+   **Do NOT pre-add packages to `settings.json` by hand.** `pi install -l` (local) and
+   `pi install` (global) are the single mechanisms that register a package: each installs the
+   package AND appends the source to the corresponding settings file (`./.pi/settings.json` or
+   `~/.pi/agent/settings.json`) on success. If an install fails, nothing is added to settings
+   — so settings never contains a package that isn't actually installed. (This is why the
+   bundled `settings.json` does not list packages — they are registered by `pi install`, not
+   by merging a `packages` array.)
 
    **Redundancy/conflict evaluation (do this BEFORE installing each package):** Some packages
    may provide tools that overlap with already-active tools. This can be:
@@ -101,8 +157,9 @@ them from there as usual.
      leaving the user with duplicate capability and a confusing tool set.
    You (the agent) must **evaluate** this — it requires judgment, not just string matching.
    Before installing each package:
-   1. Read the **already-active tools** and **project packages** from the kickoff's
-      "Current project state" section, and run `pi list` to see globally-installed packages.
+   1. Read the **already-active tools**, **project packages**, and **global packages** from
+      the kickoff's "Current project state" section, and run `pi list` for a fresh view of
+      both local and global packages.
    2. For each to-be-installed package, compare its stated purpose (from the directives)
       against the already-active tools. Ask: *does this package do something an existing tool
       already does?* Consider both exact name matches and semantic overlap.
@@ -110,17 +167,20 @@ them from there as usual.
       a choice and explain the overlap:
       - **(a) Skip** — the capability already exists; don't install the package. Note this
         in the provenance/deployment report.
-      - **(b) Replace** — `pi remove -l <overlapping-package>` (or remove it globally with
-        `pi remove <pkg>` if that's where it lives), then `pi install -l <new-package>`.
+      - **(b) Replace** — remove the overlapping package from wherever it lives
+        (`pi remove -l <overlapping-package>` if project-local, `pi remove <pkg>` if global),
+        then install the new one at the chosen scope (`pi install -l <new-package>` for local
+        or `pi install <new-package>` for global).
       - **(c) Keep both** — install it anyway. Use this when the user prefers the new tool,
         or when the two tools serve subtly different purposes despite surface similarity.
       - **(d) Cancel** — don't install anything.
    4. Only proceed with the user's chosen option.
 
-4. **Create hooks / extensions / prompts / skills.** If the directives instruct creating
-   files under `./.pi/extensions/`, `./.pi/prompts/`, or `./.pi/skills/`, create them
-   using the bundled source files or the directives' instructions. Apply the same
-   merge-don't-clobber rule for any that already exist.
+4. **Create hooks / extensions / prompts / skills / themes.** If the directives instruct creating
+   these, place them at the **chosen scope**: `./.pi/<type>/` (local) or `~/.pi/agent/<type>/`
+   (global) — themes default to global. Create them using the bundled source files or the
+   directives' instructions. Apply the same merge-don't-clobber rule (at whichever target
+   path) for any that already exist.
 
 5. **Write/update provenance.** When the deployment is complete, write (or update)
    `./.pi/harness.md` in the project directory. The provenance file is itself a valid
@@ -201,21 +261,27 @@ your reference. Follow the selection procedure in the kickoff exactly:
 
 1. **Walk the user through each category, one at a time.** Use `ctx.ui.select`/`ctx.ui.confirm`
    to let them pick which items to apply. Present each item with its one-line purpose (from
-   the directives). Let them select any subset — including none (skip the category).
+   the directives) and its author scope hint (`[local]`/`[global]`). Let them select any
+   subset — including none (skip the category).
 2. **Surface dependencies.** As the user selects, evaluate cross-component dependencies and
    warn about them before applying. Example: if they pick an extension that references a
    theme provided by a package they skipped, point that out and ask whether to also install
    the package or skip the extension. Reason about the dependencies from the directives
    prose — this is a judgment task. Never silently install a dependency the user didn't pick.
-3. **Apply only the selected components** with the same rules as a full deploy:
-   merge-don't-clobber, package-redundancy check, `pi install -l` for packages (after
-   confirming), copy/merge for files (overwrite / keep theirs / merge).
-4. **Do NOT write standard provenance.** A partial deploy is a custom config, not "this
+3. **Choose scope (local vs global).** For the selected components, run the deployment-plan
+   + preset flow from the Scope model above (accept-defaults / all-global-where-safe /
+   customize). The plan is built from only the selected components. Apply the scope-safety
+   guard for dangerous types.
+4. **Apply only the selected components** at the chosen scope with the same rules as a full
+   deploy: merge-don't-clobber (at whichever target path), package-redundancy check,
+   `pi install -l` (local) or `pi install` (global) for packages (after confirming),
+   copy/merge for files (overwrite / keep theirs / merge).
+5. **Do NOT write standard provenance.** A partial deploy is a custom config, not "this
    distro was applied." Do not write `appliedHarness`/`appliedVersion` provenance. Instead,
    after applying, suggest the next step: "This is a custom configuration. Run
    `/pi-distro save` to snapshot it as your own reusable distro" (which writes clean
    provenance for the saved distro).
-5. **Recommend a restart** if any packages or extensions were installed.
+6. **Recommend a restart** if any packages or extensions were installed.
 
 The natural loop is: `/pi-distro pick <distro-A>` → `/pi-distro pick <distro-B>` →
 `/pi-distro save` (snapshot the combined result as a new distro). This is how users build
@@ -236,19 +302,29 @@ directives against the *current* project state and let the user decide what to r
 
 Follow the removal procedure in the kickoff exactly:
 
-1. **Walk the user through each removal category, one at a time:**
-   - **(a) Packages** — for each distro package still installed, offer `pi remove -l <pkg>`.
-     Ask per package — the user may want to keep some. Warn if removing a package that other
-     components depend on.
-   - **(b) Bundled files** — for each file the distro placed, check if it exists. If it
-     does, **show the user the file (or a summary) before removing** — they may have
-     customized it. Offer: remove / keep. Never silently delete. For `settings.json`, offer
-     to remove specific keys the distro merged, not the whole file.
-   - **(c) AGENTS.md delimited section** — if the `<!-- pi-distro: <name> -->` ...
-     `<!-- /pi-distro: <name> -->` block exists, offer to remove it. Leave any non-distro
-     content.
-   - **(d) Extensions / skills / prompts / themes** — if described in the directives and
-     present, offer to remove each (show before delete).
+1. **Walk the user through each removal category, one at a time.** A distro may have
+   placed components at EITHER scope — the kickoff reports each package's placement
+   (`[local]`, `[global]`, `[both]`) by checking both `./.pi/...` and `~/.pi/agent/...`, plus
+   `pi list`. Remove from wherever it actually lives:
+   - **(a) Packages** — for each distro package still installed, remove it from where it
+     lives: `pi remove -l <pkg>` for `[local]`, `pi remove <pkg>` for `[global]` (warn: global
+     removal affects EVERY project on this machine — get explicit confirm), and BOTH
+     commands for `[both]`. Ask per package — the user may want to keep some. Warn if
+     removing a package that other components depend on.
+   - **(b) Bundled files** — for each file the distro placed, check for it at BOTH
+     `./<path>` (local) and `~/.pi/agent/<equivalent>` (global). If it exists, **show the
+     user the file (or a summary) before removing** — they may have customized it. Offer:
+     remove / keep, per location. Never silently delete. For `settings.json` (local at
+     `./.pi/settings.json`, global at `~/.pi/agent/settings.json`), offer to remove specific
+     keys the distro merged, not the whole file. Warn that global settings removal affects
+     every project.
+   - **(c) AGENTS.md delimited section** — the `<!-- pi-distro: <name> -->` ...
+     `<!-- /pi-distro: <name> -->` block may exist at `./AGENTS.md` (local) and/or
+     `~/.pi/agent/AGENTS.md` (global). Offer to remove it from each location it was found.
+     Warn that removing the global one affects every session. Leave any non-distro content.
+   - **(d) Extensions / skills / prompts / themes** — if described in the directives, check
+     for them in BOTH `./.pi/<type>/` (local) and `~/.pi/agent/<type>/` (global). Offer to
+     remove each (show before delete), per location.
 2. **Remove provenance last** — only after the user confirms the component removals, remove
    `./.pi/harness.md`. Confirm before deleting.
 3. **Report and recommend a restart** — summarise what was removed vs. kept. Tell the user to
@@ -264,16 +340,18 @@ skip, delete, or strip. The user decides; you execute their choices.
 
 When you receive a draft request from the `save` command, it contains a live-config
 snapshot of the current project: the system prompt options (tools, skills, context
-files, guidelines), and the raw contents of **every project-local config file** found
+files, guidelines), the raw contents of **every project-local config file** found
 under `./` (root `AGENTS.md`/`CLAUDE.md` variants), `./.pi/` (recursively — `settings.json`,
 `SYSTEM.md`, `APPEND_SYSTEM.md`, `extensions/`, `skills/`, `prompts/`, `themes/`, and any
 per-extension/skill config files like `.pi/<name>.json`), `./.crew/{agents,teams,workflows}/`
 (pi-crew project-local authored definitions — NOT the runtime state subdirs), and
-`./.agents/skills/` (project root only). Data/runtime dirs (`npm/`, `git/`, `sessions/`,
-`state/`, `tmp/`, the non-config subdirs of `.crew/`, `node_modules/`) and the provenance file
-`./.pi/harness.md` are excluded. Ancestor (parent-dir) `AGENTS.md` / `.agents/skills/`
-appear only in the context-files list as informational — they are out of scope and must NOT
-be bundled.
+`./.agents/skills/` (project root only). **It also captures global (user-level) config**
+from `~/.pi/agent/` (`settings.json`, `AGENTS.md`, `extensions/`, `themes/`, `skills/`,
+`prompts/`) and globally-installed packages — these are marked `(global)` in the snapshot so
+you can reproduce them at the global scope in the saved distro. Data/runtime dirs and the
+provenance file `./.pi/harness.md` are excluded. Ancestor (parent-dir) `AGENTS.md` /
+`.agents/skills/` appear only in the context-files list as informational — they are out of
+scope and must NOT be bundled.
 
 ### Authoring steps
 
@@ -288,6 +366,19 @@ be bundled.
      `version` (semver). Optionally `author` and `tags`.
    - **Directives body**: include sections for bundled files, pi packages to install,
      hooks/extensions, context, and skills/prompts — mirroring the live config.
+   - **Scope (local vs global)**: the snapshot separates **project-local** from **global**
+     (marked `(global)`, captured from `~/.pi/agent/`). Reproduce each component at the scope
+     it was captured at:
+     - A **global package** → list it in `## pi packages to install` with the `(global)`
+       marker suffix. A **project-local package** → no marker (default local).
+     - A **global bundled file** → copy into `files/` as usual, AND add a `## Global
+       deployment notes` section listing which file targets should be placed globally
+       (e.g. `.pi/extensions/foo.ts` → deploy globally to `~/.pi/agent/extensions/foo.ts`).
+     - Global `settings.json` / `SYSTEM.md` / `AGENTS.md` → note in `## Global deployment
+       notes` that they target `~/.pi/agent/...`, so the deploy-time scope-safety guard
+       surfaces the blast radius.
+     The user's deploy-time preset still governs the final scope — these markers/notes are
+     the author-suggested defaults.
 
 3. **Propose & confirm.** Present the proposed `name`, `title`, `description`, and the full
    draft to the user. Ask for confirmation or edits. Do not proceed until the user

@@ -7,7 +7,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
-import { readFullHarnessMd, listBundledFiles, readCatalogue, findHarness, parsePackageList, sourceLabel } from "./catalogue.ts";
+import { readFullHarnessMd, listBundledFiles, readCatalogue, findHarness, parsePackageListWithScope, sourceLabel } from "./catalogue.ts";
 import type { HarnessEntry } from "./catalogue.ts";
 import { parseFrontmatter, extractBody } from "./frontmatter.ts";
 import { looksLikeGithubRef, parseGithubRef, fetchGithubDistro, fetchOfficialDistro } from "./github.ts";
@@ -18,7 +18,7 @@ export async function buildShowPreview(harness: HarnessEntry): Promise<string> {
   const fullMd = await readFullHarnessMd(harness.harnessMdPath!);
   const fm = parseFrontmatter(fullMd);
   const body = extractBody(fullMd);
-  const packages = parsePackageList(body);
+  const packages = parsePackageListWithScope(body);
 
   let settingsPreview = "_(none)_";
   if (harness.filesDir) {
@@ -44,13 +44,19 @@ export async function buildShowPreview(harness: HarnessEntry): Promise<string> {
 - **Source:** ${sourceLabel(harness.source)}
 
 ### pi packages to install
-${packages.length > 0 ? packages.map((p) => `- \`${p}\``).join("\n") : "_(none)_"}
+${packages.length > 0 ? packages.map((p) => `- \`${p.source}\` [${p.scope}]`).join("\n") : "_(none)_"}
+
+(\`[local]\`/\`[global]\` = author-suggested default scope; the user's deploy-time preset governs the final scope.)
 
 ### Settings (would be merged)
 ${settingsPreview}
 
 ### Bundled files (target paths)
 ${fileList}
+
+> **Scope:** by default, bundled files deploy project-locally (\`./<target>\`), except
+> themes which default to global (\`~/.pi/agent/themes/\`). At deploy time the user picks a
+> preset (accept-defaults / all-global-where-safe / customize).
 
 ### Full directives
 ${body}

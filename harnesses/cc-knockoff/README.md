@@ -93,7 +93,7 @@ rather than installs:
 ## Prerequisites
 
 - **Auth and model routing** are not part of this distro — configure those independently
-  (e.g. set `defaultProvider` and `defaultModel` in your global `~/.pi/settings.json`,
+  (e.g. set `defaultProvider` and `defaultModel` in your global `~/.pi/agent/settings.json`,
   or use OpenRouter via the `@robhowley/pi-openrouter` package installed above).
 - **Restart pi** after deploying — packages and extensions load at startup.
 

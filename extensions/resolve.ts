@@ -14,7 +14,13 @@ import {
   sourceLabel,
 } from "./catalogue.ts";
 import type { HarnessEntry } from "./catalogue.ts";
-import { looksLikeGithubRef, parseGithubRef, fetchGithubDistro, fetchOfficialDistro } from "./github.ts";
+import {
+  looksLikeGithubRef,
+  parseGithubRef,
+  fetchGithubDistro,
+  fetchOfficialDistro,
+  isOfficialCatalogueUnavailable,
+} from "./github.ts";
 
 /**
  * Resolve a distro from a name argument (GitHub ref or local catalogue name).
@@ -43,15 +49,23 @@ export async function resolveDistro(
 
   // Local catalogue
   const catalogue = await readCatalogue();
+  const offlineNote = isOfficialCatalogueUnavailable()
+    ? " (Official distros could not be fetched from GitHub — offline or rate-limited? Try again later.)"
+    : "";
   if (catalogue.length === 0) {
-    ctx.ui.notify("No distros found. Run /pi-distro save to create one.", "warning");
+    ctx.ui.notify(
+      isOfficialCatalogueUnavailable()
+        ? "Could not reach GitHub to list official distros (offline or rate-limited?), and no local distros exist. Retry later, or run /pi-distro save to create one."
+        : "No distros found. Run /pi-distro save to create one.",
+      "warning",
+    );
     return undefined;
   }
   if (nameArg) {
     const harness = findHarness(nameArg, catalogue);
     if (!harness) {
       const available = catalogue.map((h) => h.name).join(", ") || "(none)";
-      ctx.ui.notify(`Distro '${nameArg}' not found. Available: ${available}`, "error");
+      ctx.ui.notify(`Distro '${nameArg}' not found. Available: ${available}${offlineNote}`, "error");
       return undefined;
     }
     return resolveEntry(harness, ctx);

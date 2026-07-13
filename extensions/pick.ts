@@ -9,15 +9,17 @@ import type {
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { listBundledFiles, parsePackageList } from "./catalogue.ts";
+import { listBundledFiles, parsePackageListWithScope } from "./catalogue.ts";
 import { extractBody } from "./frontmatter.ts";
-import { parseGithubRef, isOfficialSource } from "./github.ts";
+import { parseGithubRef, isOfficialSource, tempCloneRoot } from "./github.ts";
 import { resolveDistro } from "./resolve.ts";
 import { buildShowPreview } from "./show.ts";
 import {
   display,
   readProjectPackages,
+  readGlobalPackages,
   MERGE_RULE,
+  SCOPE_RULE,
   USER_INVOLVEMENT_RULE,
   PACKAGE_CONFLICT_RULE,
 } from "./util.ts";
@@ -48,9 +50,13 @@ export async function handlePick(pi: ExtensionAPI, ctx: ExtensionCommandContext,
   // Parse the distro into selectable components.
   const fullMd = readFileSync(entry.harnessMdPath!, "utf-8");
   const directives = extractBody(fullMd);
-  const packages = parsePackageList(directives);
+  const packages = parsePackageListWithScope(directives);
   const files = entry.filesDir ? await listBundledFiles(entry.filesDir) : [];
-  const filesDirNote = entry.filesDir ? `\n\nBundled files are located at: \`${entry.filesDir}\`` : "";
+  const cloneRoot = entry.dir ? tempCloneRoot(entry.dir) : undefined;
+  const cloneCleanupNote = cloneRoot
+    ? `\n\nThe distro was fetched to a temporary GitHub clone. After the selected bundled files have been copied into the project, remove the clone: \`rm -rf ${cloneRoot}\``
+    : "";
+  const filesDirNote = (entry.filesDir ? `\n\nBundled files are located at: \`${entry.filesDir}\`` : "") + cloneCleanupNote;
 
   const snapshot = ctx.getSystemPromptOptions();
   const activeTools = snapshot.selectedTools?.length
@@ -58,9 +64,11 @@ export async function handlePick(pi: ExtensionAPI, ctx: ExtensionCommandContext,
     : "_(none / default set)_";
   const pkgs = readProjectPackages(snapshot.cwd);
   const projectPackages = pkgs.length > 0 ? pkgs.map((p) => `- \`${p}\``).join("\n") : "_(none)_";
+  const gpkgs = readGlobalPackages();
+  const globalPackages = gpkgs.length > 0 ? gpkgs.map((p) => `- \`${p}\``).join("\n") : "_(none)_";
 
   const packageList = packages.length > 0
-    ? packages.map((p) => `- \`${p}\``).join("\n")
+    ? packages.map((p) => `- \`${p.source}\` [${p.scope}]`).join("\n")
     : "_(none)_";
   const fileList = files.length > 0
     ? files.map((f) => `- \`${f.source}\` → \`./${f.target}\``).join("\n")
@@ -89,19 +97,25 @@ extensions, themes, prompts, skills) — treat each as individually selectable t
 **Already-active tools in this session:**
 ${activeTools}
 
-**Packages already in this project's .pi/settings.json:**
+**Packages already in this project's .pi/settings.json (project-local):**
 ${projectPackages}
 
-(Run \`pi list\` to also see globally-installed packages.)
+**Packages already in ~/.pi/agent/settings.json (global, every project):**
+${globalPackages}
+
+(Run \`pi list\` to see both local and global packages in one view.)
 
 ### Selection procedure (follow exactly, collaborating with the user)
 
 **0. User involvement rule** — ${USER_INVOLVEMENT_RULE}
 
+**0a. Scope rule** — ${SCOPE_RULE} Apply the deployment-plan + preset flow to the items the user selects to apply (not the whole distro). Build the plan from only the selected components, offer the three presets (accept-defaults / all-global-where-safe / customize), apply the scope-safety guard for dangerous types, then install/place at the chosen scope.
+
 **1. Walk the user through each category, one at a time.** For each category (packages, then
    bundled files, then any other components described in the directives), use
    \`ctx.ui.select\`/\`ctx.ui.confirm\` to let the user pick which to apply. Present the items
-   with their one-line purpose (from the directives). Let the user select any subset —
+   with their one-line purpose (from the directives) and their author scope hint
+   (\`[local]\`/\`[global]\`). Let the user select any subset —
    including none (skip the category entirely).
 
 **2. Surface dependencies.** As the user selects, **evaluate cross-component dependencies**
@@ -115,7 +129,7 @@ ${projectPackages}
 **3. Apply only the selected components**, with the same rules as a full deploy:
    - **Merge-don't-clobber** — ${MERGE_RULE}
    - **Package-redundancy check** — ${PACKAGE_CONFLICT_RULE}
-   - For each selected package: \`pi install -l\` after confirming (do NOT pre-add to
+   - For each selected package: install at the chosen scope (\`pi install -l\` for local, \`pi install\` for global) after confirming (do NOT pre-add to
      settings.json by hand).
    - For each selected bundled file: copy/merge as the user chooses (overwrite / keep theirs /
      merge).
@@ -129,5 +143,6 @@ ${projectPackages}
 
 **5. Recommend a restart** if any packages or extensions were installed — they load at
    startup.`);
-  // GitHub temp dir left in /tmp for the agent to read bundled files (ephemeral).
+  // GitHub temp dir is left in place so the agent can read the bundled files;
+  // the kickoff instructs the agent to remove it after copying them.
 }

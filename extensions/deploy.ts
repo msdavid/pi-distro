@@ -10,17 +10,19 @@ import type {
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
-import { listBundledFiles, parseProvenance } from "./catalogue.ts";
+import { listBundledFiles, parseProvenance, parsePackageListWithScope } from "./catalogue.ts";
 import type { HarnessEntry } from "./catalogue.ts";
 import { extractBody } from "./frontmatter.ts";
-import { parseGithubRef, isOfficialSource } from "./github.ts";
+import { parseGithubRef, isOfficialSource, tempCloneRoot } from "./github.ts";
 import { resolveDistro } from "./resolve.ts";
 import { buildShowPreview } from "./show.ts";
 import {
   display,
   compareVersions,
   readProjectPackages,
+  readGlobalPackages,
   MERGE_RULE,
+  SCOPE_RULE,
   USER_INVOLVEMENT_RULE,
   PACKAGE_CONFLICT_RULE,
 } from "./util.ts";
@@ -37,7 +39,11 @@ export async function sendDeployKickoff(
   const fileList = files.length > 0
     ? files.map((f) => `- \`${f.source}\` → \`./${f.target}\``).join("\n")
     : "_(no bundled files)_";
-  const filesDirNote = harness.filesDir ? `\n\nBundled files are located at: \`${harness.filesDir}\`` : "";
+  const cloneRoot = harness.dir ? tempCloneRoot(harness.dir) : undefined;
+  const cloneCleanupNote = cloneRoot
+    ? `\n\nThe distro was fetched to a temporary GitHub clone. After all bundled files have been copied into the project, remove the clone: \`rm -rf ${cloneRoot}\``
+    : "";
+  const filesDirNote = (harness.filesDir ? `\n\nBundled files are located at: \`${harness.filesDir}\`` : "") + cloneCleanupNote;
 
   const snapshot = ctx.getSystemPromptOptions();
   const activeTools = snapshot.selectedTools?.length
@@ -45,6 +51,15 @@ export async function sendDeployKickoff(
     : "_(none / default set)_";
   const pkgs = readProjectPackages(snapshot.cwd);
   const projectPackages = pkgs.length > 0 ? pkgs.map((p) => `- \`${p}\``).join("\n") : "_(none)_";
+  const gpkgs = readGlobalPackages();
+  const globalPackages = gpkgs.length > 0 ? gpkgs.map((p) => `- \`${p}\``).join("\n") : "_(none)_";
+
+  // Author-specified scope hints (a package may be marked `(global)` in the directives).
+  // These are *defaults* for the deployment plan — the user's preset still governs.
+  const scopedPackages = parsePackageListWithScope(directives);
+  const packagePlan = scopedPackages.length > 0
+    ? scopedPackages.map((p) => `- \`${p.source}\` [${p.scope}]`).join("\n")
+    : "_(none)_";
 
   // Version comparison against existing provenance (upgrade / downgrade / same / first deploy)
   const provenancePath = join(snapshot.cwd, ".pi", "harness.md");
@@ -77,19 +92,30 @@ ${directives}
 ### Bundled files manifest
 ${fileList}${filesDirNote}
 
+### Packages with author scope hints
+${packagePlan}
+
+(\`[local]\` / \`[global]\` are the distro author's suggested default scope. The user's deploy-time preset — see the scope rule below — governs the final scope.)
+
 ### Current project state (for conflict detection)
 **Already-active tools in this session:**
 ${activeTools}
 
-**Packages already in this project's .pi/settings.json:**
+**Packages already in this project's .pi/settings.json (project-local):**
 ${projectPackages}
 
-(Run \`pi list\` to also see globally-installed packages.)
+**Packages already in ~/.pi/agent/settings.json (global, every project):**
+${globalPackages}
+
+(Run \`pi list\` to see both local and global packages in one view.)
 
 ${versionNote}
 
 ### User involvement rule
 ${USER_INVOLVEMENT_RULE}
+
+### Scope rule (install locally or globally)
+${SCOPE_RULE}
 
 ### Merge rule
 ${MERGE_RULE}
@@ -138,5 +164,6 @@ export async function handleDeploy(pi: ExtensionAPI, ctx: ExtensionCommandContex
   }
 
   await sendDeployKickoff(pi, ctx, entry);
-  // GitHub temp dir left in /tmp for the agent to read bundled files (ephemeral).
+  // GitHub temp dir is left in place so the agent can read the bundled files;
+  // the kickoff instructs the agent to remove it after copying them.
 }

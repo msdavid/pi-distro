@@ -1,7 +1,7 @@
 ---
 name: trip-planner
 title: Trip Planner Agent
-description: "A research-first trip planning configuration — replaces pi's default coder prompt with a trip-planner system prompt (investigate-before-book methodology, 7-stage workflow, document/booklet/map deliverables), web/browser access for live fares, sub-agents for parallel research, todos & goals for booking tracking, plus a Claude-style status line via the pi-cc-status package."
+description: "Research-first trip planning: replaces pi's coder prompt with a trip-planner system prompt (investigate-before-book, 7-stage workflow, document/booklet/map deliverables), with web/browser access for live fares, research sub-agents, todos & goals, and a Claude-style status line."
 version: 0.3.0
 tags: [trip-planning, travel, research, documentation]
 ---

@@ -9,9 +9,10 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { readFileSync, statSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { homedir } from "node:os";
 
 import { getUserHarnessesDir } from "./catalogue.ts";
-import { display } from "./util.ts";
+import { display, readGlobalPackages } from "./util.ts";
 
 export async function handleSave(pi: ExtensionAPI, ctx: ExtensionCommandContext): Promise<void> {
   const snapshot = ctx.getSystemPromptOptions();
@@ -26,20 +27,33 @@ export async function handleSave(pi: ExtensionAPI, ctx: ExtensionCommandContext)
   // NOTE: .crew/ is handled separately below — it mixes authored config (agents/teams/workflows)
   // with runtime state (state/artifacts/worktrees/imports/audit/cache/graphs), so only its three
   // config subdirs are captured, not the whole tree.
-  const SKIP_NAMES = new Set(["npm", "git", "sessions", "state", "tmp", "node_modules"]);
+  const SKIP_NAMES = new Set(["npm", "git", "sessions", "state", "tmp", "node_modules", "loops"]);
   const MAX_DUMP_BYTES = 16384;
-  const configFiles: string[] = [];
-  const pushFile = (fp: string) => {
+  const MAX_TOTAL_DUMP_BYTES = 262144; // cap the whole inlined snapshot, not just per-file
+  let totalInlined = 0;
+  const makePush = (sink: string[], label: string) => (fp: string) => {
     let st;
     try { st = statSync(fp); } catch { return; }
     if (st.size > MAX_DUMP_BYTES) {
-      configFiles.push(`### ${fp}\n_(${st.size} bytes — read with the \`read\` tool if needed)_`);
+      sink.push(`### ${fp}${label}\n_(${st.size} bytes — read with the \`read\` tool if needed)_`);
+      return;
+    }
+    if (totalInlined + st.size > MAX_TOTAL_DUMP_BYTES) {
+      sink.push(`### ${fp}${label}\n_(omitted — snapshot size cap reached; read with the \`read\` tool if needed)_`);
       return;
     }
     try {
-      configFiles.push(`### ${fp}\n\`\`\`\n${readFileSync(fp, "utf-8")}\n\`\`\``);
-    } catch { /* unreadable (binary?) — skip */ }
+      const buf = readFileSync(fp);
+      if (buf.includes(0)) {
+        sink.push(`### ${fp}${label}\n_(binary file, ${st.size} bytes — not inlined; copy it as-is if bundling)_`);
+        return;
+      }
+      totalInlined += st.size;
+      sink.push(`### ${fp}${label}\n\`\`\`\n${buf.toString("utf-8")}\n\`\`\``);
+    } catch { /* unreadable — skip */ }
   };
+  const configFiles: string[] = [];
+  const pushFile = makePush(configFiles, "");
   const walk = (dir: string, isPiRoot: boolean) => {
     let entries;
     try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
@@ -80,6 +94,40 @@ export async function handleSave(pi: ExtensionAPI, ctx: ExtensionCommandContext)
       if (existsSync(subDir)) walk(subDir, false);
     }
   }
+
+  // Global (user-level) config at ~/.pi/agent/ — capture alongside project-local so that
+  // components the user installed GLOBALLY (via `pi install` with no -l, or files placed in
+  // ~/.pi/agent/) are reproduced by the saved distro. These are marked as global in the
+  // snapshot (absolute path under ~/.pi/agent/). The agent must emit `(global)` markers for
+  // global packages and note global file placement in the directives so a re-deploy installs
+  // them at the global scope, not project-local. Skip runtime/data dirs (npm/, sessions/,
+  // state/, tmp/, bin/, supi/, cc-status/) and auth/models/trust (machine-specific). Only the
+  // authored config is captured: settings.json, AGENTS.md, extensions/, themes/, skills/,
+  // prompts/. An ancestor or unrelated global file the user added by hand is also captured.
+  const globalAgentDir = join(homedir(), ".pi", "agent");
+  const globalFiles: string[] = [];
+  const GLOBAL_SKIP_NAMES = new Set(["npm", "sessions", "state", "tmp", "bin", "supi", "cc-status", "loops"]);
+  const pushGlobalFile = makePush(globalFiles, " (global)");
+  const walkGlobal = (dir: string) => {
+    let entries;
+    try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      const fp = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (GLOBAL_SKIP_NAMES.has(entry.name)) continue;
+        walkGlobal(fp);
+      } else if (entry.isFile()) {
+        // skip machine-specific runtime files
+        if (["auth.json", "models.json", "trust.json"].includes(entry.name)) continue;
+        pushGlobalFile(fp);
+      }
+    }
+  };
+  if (existsSync(globalAgentDir)) walkGlobal(globalAgentDir);
+  const gpkgs = readGlobalPackages();
+  const globalPackagesList = gpkgs.length > 0
+    ? gpkgs.map((p) => `- \`${p}\` (global)`).join("\n")
+    : "_(none)_";
 
   // Existing user harnesses (so the agent can offer update-existing)
   const userDir = getUserHarnessesDir();
@@ -132,6 +180,28 @@ The body should have directive sections (Bundled files, pi packages to install, 
 prompt/SYSTEM.md if present, Themes, Context, Skills/prompts, and any per-extension/skill
 config files) mirroring the live config.
 
+**Scope handling (local vs global):** the snapshot above separates **project-local** files
+(under \`./.pi/\` and \`./\`) from **global** files (under \`~/.pi/agent/\`, marked \`(global)\`),
+and lists global packages with \`(global)\`. Reproduce each component at the scope it was
+captured at:
+  - For a **global package**: list it in the \`## pi packages to install\` section with the
+    \`(global)\` marker (e.g. - npm:foo (global) — reason, written as a list item with
+    the marker suffix). At
+    deploy, the user's preset still governs, but the marker is the author-suggested default.
+  - For a **project-local package**: list it without the marker (default local).
+  - For a **global bundled file** (e.g. \`~/.pi/agent/extensions/foo.ts\`): copy it into the
+    distro's \`files/\` mirror preserving structure, AND add a note in a
+    \`## Global deployment notes\` directive section listing which file targets should be
+    placed globally (e.g. "\`.pi/extensions/foo.ts\` -> deploy globally to
+    \`~/.pi/agent/extensions/foo.ts\`"). The agent reads this note at deploy and places
+    those files at the global path per the user's scope choice.
+  - For a **global settings.json merge** or **global SYSTEM.md/AGENTS.md**: these are the
+    dangerous guarded types — note in \`## Global deployment notes\` that they target
+    \`~/.pi/agent/settings.json\` / \`~/.pi/agent/SYSTEM.md\` / \`~/.pi/agent/AGENTS.md\`, so the
+    deploy-time scope-safety guard will surface their blast radius.
+If the user does not want a global component reproduced, they may ask to drop it or convert
+it to local — confirm with them during the draft step.
+
 **2. Propose & confirm.** Show the user the proposed \`name\`, \`title\`, \`description\`,
 and the full draft. Ask for confirmation or edits. Do NOT proceed until the user confirms.
 
@@ -172,7 +242,7 @@ project root:
   - any per-extension/skill config files (e.g. \`.pi/<name>.json\`) -> \`files/.pi/\` (same path)
   Use \`cp -r\` for directory trees. Only copy files that actually exist. Do NOT copy:
   \`./.pi/harness.md\` (provenance), \`./.pi/npm/\`, \`./.pi/git/\`, \`./.pi/sessions/\`,
-  \`./.pi/state/\`, \`./.pi/tmp/\`, \`./.pi/.crew/\`, or any \`node_modules/\`.
+  \`./.pi/state/\`, \`./.pi/tmp/\`, \`./.pi/loops/\`, \`./.pi/.crew/\`, or any \`node_modules/\`.
 
   **Theme dedup:** before bundling a \`.pi/themes/<name>.json\`, check whether that theme
   name is already provided by an installed package (run \`pi list\`; package themes surface
